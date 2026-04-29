@@ -1,7 +1,7 @@
 # app.py
 # ==========================================================
-# 영천 문화유산 AI 분석 플랫폼 (실사용 코드 100% 반영 버전)
-# 문화재청 XML API 직접 수집형 / CSV 불필요
+# 영천 문화유산 AI 분석 플랫폼 (최종 완성판 V3)
+# 문화재청 API + 카카오 좌표보정 + Gemini + 군집분석
 # Streamlit Cloud 배포용
 # ==========================================================
 
@@ -19,10 +19,11 @@ from sklearn.cluster import KMeans
 import google.generativeai as genai
 
 # ==========================================================
-# API KEY 직접 입력
+# API KEY
 # ==========================================================
 KAKAO_API_KEY = "4b2bd2c723594d75ace03ff0e80d65fc"
 GEMINI_API_KEY = "AIzaSyCeNS_TTBIU6LmchWVdpki-Z9k0-MbKL6E"
+
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -36,10 +37,16 @@ st.set_page_config(
 )
 
 st.title("🏛️ 영천 문화유산 AI 분석 플랫폼")
-st.caption("문화재청 실시간 API + 지도 시각화 + 군집분석 + Gemini AI")
+st.caption("문화재청 API + 카카오맵 좌표보정 + AI 군집분석 + Gemini")
 
 # ==========================================================
-# 문화재청 API (당신 실코드 반영)
+# 영천 중심 좌표
+# ==========================================================
+YEONGCHEON_LAT = 35.9733
+YEONGCHEON_LON = 128.9386
+
+# ==========================================================
+# 문화재청 API 요청
 # ==========================================================
 BASE_URL = "https://www.khs.go.kr"
 
@@ -57,14 +64,43 @@ def safe_request(url, params=None, retry=5):
 
             if res.status_code == 200:
                 return res
-
         except:
             time.sleep(2)
 
     return None
 
 # ==========================================================
-# 전체 국가유산 수집 → 영천만 필터링
+# 카카오 주소 → 좌표 변환
+# ==========================================================
+@st.cache_data(ttl=86400)
+def get_coord(address):
+
+    url = "https://dapi.kakao.com/v2/local/search/address.json"
+
+    headers = {
+        "Authorization": f"KakaoAK {KAKAO_API_KEY}"
+    }
+
+    params = {
+        "query": address
+    }
+
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        data = r.json()
+
+        if data["documents"]:
+            lat = float(data["documents"][0]["y"])
+            lon = float(data["documents"][0]["x"])
+            return lat, lon
+
+    except:
+        pass
+
+    return None, None
+
+# ==========================================================
+# 데이터 수집
 # ==========================================================
 @st.cache_data(ttl=86400)
 def load_data():
@@ -95,33 +131,38 @@ def load_data():
 
         for item in items:
 
-            all_data.append({
-                "국가유산종목": item.findtext("ccmaName"),
-                "문화재명": item.findtext("ccbaMnm1"),
-                "시도명": item.findtext("ccbaCtcdNm"),
-                "시군구명": item.findtext("ccsiName"),
-                "종목코드": item.findtext("ccbaKdcd"),
-                "시도코드": item.findtext("ccbaCtcd"),
-                "관리번호": item.findtext("ccbaAsno"),
-                "위도": item.findtext("latitude"),
-                "경도": item.findtext("longitude")
-            })
+            city = item.findtext("ccsiName")
+
+            if city and "영천" in city:
+
+                name = item.findtext("ccbaMnm1")
+                category = item.findtext("ccmaName")
+                lat = item.findtext("latitude")
+                lon = item.findtext("longitude")
+
+                lat = pd.to_numeric(lat, errors="coerce")
+                lon = pd.to_numeric(lon, errors="coerce")
+
+                # 좌표 없으면 카카오 보정
+                if pd.isna(lat) or pd.isna(lon):
+                    lat, lon = get_coord("경북 영천시 " + name)
+
+                all_data.append({
+                    "국가유산종목": category,
+                    "문화재명": name,
+                    "시군구명": city,
+                    "위도": lat,
+                    "경도": lon
+                })
 
         page += 1
-        time.sleep(0.5)
+        time.sleep(0.3)
 
     df = pd.DataFrame(all_data)
 
-    # 영천만 필터링
-    df = df[df["시군구명"].str.contains("영천", na=False)]
+    df = df.dropna()
 
-    # 숫자형 변환
-    df["위도"] = pd.to_numeric(df["위도"], errors="coerce")
-    df["경도"] = pd.to_numeric(df["경도"], errors="coerce")
-
-    df = df.dropna(subset=["위도", "경도"])
-
-    # 시대점수 (임시)
+    # 점수 생성
     df["시대점수"] = 5
     df["가치점수"] = 5
 
@@ -130,7 +171,7 @@ def load_data():
 df = load_data()
 
 # ==========================================================
-# 사이드 메뉴
+# 메뉴
 # ==========================================================
 menu = st.sidebar.radio(
     "메뉴 선택",
@@ -159,12 +200,14 @@ if menu == "홈":
     st.markdown("---")
 
     st.write("""
-    본 플랫폼은 문화재청 XML OpenAPI 데이터를 실시간 수집하여  
-    영천 지역 국가유산을 분석하는 프로젝트입니다.
+    본 플랫폼은 문화재청 API 데이터를 활용하여
+    영천 지역 문화유산을 분석합니다.
+
+    카카오맵 좌표 보정과 Gemini AI 설명 기능이 포함되어 있습니다.
     """)
 
 # ==========================================================
-# 현황
+# 문화재 현황
 # ==========================================================
 elif menu == "문화재 현황":
 
@@ -175,7 +218,7 @@ elif menu == "문화재 현황":
         y=count.index,
         orientation="h",
         color=count.values,
-        title="영천 국가유산 종목별 현황"
+        title="영천 문화재 종목별 현황"
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -186,7 +229,7 @@ elif menu == "문화재 현황":
 elif menu == "문화재 지도":
 
     m = folium.Map(
-        location=[df["위도"].mean(), df["경도"].mean()],
+        location=[YEONGCHEON_LAT, YEONGCHEON_LON],
         zoom_start=11
     )
 
@@ -211,19 +254,20 @@ elif menu == "문화재 지도":
 elif menu == "HeatMap":
 
     m = folium.Map(
-        location=[df["위도"].mean(), df["경도"].mean()],
+        location=[YEONGCHEON_LAT, YEONGCHEON_LON],
         zoom_start=11
     )
 
     HeatMap(
         df[["위도", "경도"]].values.tolist(),
-        radius=15
+        radius=18,
+        blur=15
     ).add_to(m)
 
     st_folium(m, width=1300, height=700)
 
 # ==========================================================
-# AI 군집분석
+# 군집분석
 # ==========================================================
 elif menu == "AI 군집분석":
 
@@ -277,12 +321,12 @@ elif menu == "Gemini 챗봇":
         model = genai.GenerativeModel("gemini-1.5-flash")
 
         prompt = f"""
-        너는 문화재 데이터 분석 전문가다.
+        너는 문화재 분석 전문가다.
 
         영천 문화재 수: {len(df)}
         종목 종류: {', '.join(df['국가유산종목'].unique()[:10])}
 
-        사용자 질문:
+        질문:
         {q}
 
         학생 발표 수준으로 쉽게 설명해줘.
