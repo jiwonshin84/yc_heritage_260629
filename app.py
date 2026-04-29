@@ -318,7 +318,7 @@ elif menu == "Gemini 챗봇":
 
     if st.button("질문하기"):
 
-        model = genai.GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel("gemini-1.5-pro")
 
         prompt = f"""
         너는 문화재 분석 전문가다.
