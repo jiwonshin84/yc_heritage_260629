@@ -236,9 +236,9 @@ elif menu == "문화재 검색":
             if st.button("🔎 상세 정보 보기"):
 
                 detail = get_detail(
-                    row["ccbaKdcd"],
-                    row["ccbaAsno"],
-                    row["ccbaCtcd"]
+                    row["종목코드"],   # ccbaKdcd
+                    row["관리번호"],   # ccbaAsno
+                    row["시도코드"]    # ccbaCtcd
                 )
 
                 if detail:
