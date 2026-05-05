@@ -1,8 +1,6 @@
-# app.py
 # ==========================================================
-# 영천 문화유산 AI 분석 플랫폼 (최종 완성판 V3)
-# 문화재청 API + 카카오 좌표보정 + Gemini + 군집분석
-# Streamlit Cloud 배포용
+# 영천 문화유산 AI 분석 플랫폼 (최종 완성판 V4)
+# GitHub CSV + 상세 API + 카카오 좌표 + Gemini
 # ==========================================================
 
 import streamlit as st
@@ -21,9 +19,8 @@ import google.generativeai as genai
 # ==========================================================
 # API KEY
 # ==========================================================
-KAKAO_API_KEY = "4b2bd2c723594d75ace03ff0e80d65fc"
-GEMINI_API_KEY = "AIzaSyCeNS_TTBIU6LmchWVdpki-Z9k0-MbKL6E"
-
+KAKAO_API_KEY = "YOUR_KAKAO_API_KEY"
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -37,7 +34,7 @@ st.set_page_config(
 )
 
 st.title("🏛️ 영천 문화유산 AI 분석 플랫폼")
-st.caption("문화재청 API + 카카오맵 좌표보정 + AI 군집분석 + Gemini")
+st.caption("CSV 기반 + 상세 API + 지도 + AI 분석")
 
 # ==========================================================
 # 영천 중심 좌표
@@ -46,144 +43,85 @@ YEONGCHEON_LAT = 35.9733
 YEONGCHEON_LON = 128.9386
 
 # ==========================================================
-# 문화재청 API 요청
+# API 기본 설정
 # ==========================================================
 BASE_URL = "https://www.khs.go.kr"
 
 session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0"
-})
+session.headers.update({"User-Agent": "Mozilla/5.0"})
+
 
 def safe_request(url, params=None, retry=5):
-
     for _ in range(retry):
         try:
-            res = session.get(url, params=params, timeout=20)
+            res = session.get(url, params=params, timeout=15)
             res.encoding = "utf-8"
-
             if res.status_code == 200:
                 return res
         except:
-            time.sleep(2)
-
+            time.sleep(1)
     return None
 
-# ==========================================================
-# 카카오 주소 → 좌표 변환
-# ==========================================================
-@st.cache_data(ttl=86400)
-def get_coord(address):
-
-    url = "https://dapi.kakao.com/v2/local/search/address.json"
-
-    headers = {
-        "Authorization": f"KakaoAK {KAKAO_API_KEY}"
-    }
-
-    params = {
-        "query": address
-    }
-
-    try:
-        r = requests.get(url, headers=headers, params=params, timeout=10)
-        data = r.json()
-
-        if data["documents"]:
-            lat = float(data["documents"][0]["y"])
-            lon = float(data["documents"][0]["x"])
-            return lat, lon
-
-    except:
-        pass
-
-    return None, None
 
 # ==========================================================
-# 데이터 수집
+# CSV 데이터 로드
 # ==========================================================
 @st.cache_data(ttl=86400)
 def load_data():
+    df = pd.read_csv("All_Heritage.csv")
 
-    url = BASE_URL + "/cha/SearchKindOpenapiList.do"
+    df["위도"] = pd.to_numeric(df["위도"], errors="coerce")
+    df["경도"] = pd.to_numeric(df["경도"], errors="coerce")
 
-    all_data = []
-    page = 1
+    # 영천 필터
+    df = df[df["시군구명"].str.contains("영천", na=False)]
 
-    while True:
-
-        params = {
-            "pageUnit": "300",
-            "pageIndex": str(page),
-            "ccbaCncl": "N"
-        }
-
-        response = safe_request(url, params)
-
-        if response is None:
-            break
-
-        root = ET.fromstring(response.text)
-        items = list(root.iter("item"))
-
-        if len(items) == 0:
-            break
-
-        for item in items:
-
-            city = item.findtext("ccsiName")
-
-            if city and "영천" in city:
-
-                name = item.findtext("ccbaMnm1")
-                category = item.findtext("ccmaName")
-                lat = item.findtext("latitude")
-                lon = item.findtext("longitude")
-
-                lat = pd.to_numeric(lat, errors="coerce")
-                lon = pd.to_numeric(lon, errors="coerce")
-
-                # 좌표 없으면 카카오 보정
-                if pd.isna(lat) or pd.isna(lon):
-                    lat, lon = get_coord("경북 영천시 " + name)
-
-                all_data.append({
-                    "국가유산종목": category,
-                    "문화재명": name,
-                    "시군구명": city,
-                    "위도": lat,
-                    "경도": lon
-                })
-
-        page += 1
-        time.sleep(0.3)
-
-    df = pd.DataFrame(all_data)
-
-    df = df.dropna()
-
-    # 점수 생성
-    df["시대점수"] = 5
-    df["가치점수"] = 5
+    df = df.dropna(subset=["위도", "경도"])
 
     return df.reset_index(drop=True)
 
+
 df = load_data()
+
+# ==========================================================
+# 상세 조회 API
+# ==========================================================
+def get_detail(ccbaKdcd, ccbaAsno, ccbaCtcd):
+
+    url = BASE_URL + "/cha/SearchKindOpenapiDt.do"
+
+    params = {
+        "ccbaKdcd": ccbaKdcd,
+        "ccbaAsno": ccbaAsno,
+        "ccbaCtcd": ccbaCtcd
+    }
+
+    res = safe_request(url, params)
+
+    if res is None:
+        return None
+
+    root = ET.fromstring(res.text)
+    item = root.find(".//item")
+
+    if item is None:
+        return None
+
+    return {
+        "이미지": item.findtext("imageUrl"),
+        "내용": item.findtext("content"),
+        "시대": item.findtext("ccceName"),
+        "소재지": item.findtext("ccbaLcad"),
+        "종목": item.findtext("ccmaName")
+    }
+
 
 # ==========================================================
 # 메뉴
 # ==========================================================
 menu = st.sidebar.radio(
     "메뉴 선택",
-    [
-        "홈",
-        "문화재 현황",
-        "문화재 지도",
-        "HeatMap",
-        "AI 군집분석",
-        "문화재 검색",
-        "Gemini 챗봇"
-    ]
+    ["홈", "문화재 현황", "문화재 지도", "HeatMap", "AI 군집분석", "문화재 검색", "Gemini 챗봇"]
 )
 
 # ==========================================================
@@ -194,17 +132,12 @@ if menu == "홈":
     c1, c2, c3 = st.columns(3)
 
     c1.metric("전체 문화재 수", len(df))
-    c2.metric("국가유산 종목 수", df["국가유산종목"].nunique())
-    c3.metric("분석 지역", "영천시")
+    c2.metric("종목 수", df["국가유산종목"].nunique())
+    c3.metric("지역", "영천")
 
     st.markdown("---")
 
-    st.write("""
-    본 플랫폼은 문화재청 API 데이터를 활용하여
-    영천 지역 문화유산을 분석합니다.
-
-    카카오맵 좌표 보정과 Gemini AI 설명 기능이 포함되어 있습니다.
-    """)
+    st.info("GitHub CSV + 국가유산 API + AI 분석 기반 플랫폼")
 
 # ==========================================================
 # 문화재 현황
@@ -228,22 +161,13 @@ elif menu == "문화재 현황":
 # ==========================================================
 elif menu == "문화재 지도":
 
-    m = folium.Map(
-        location=[YEONGCHEON_LAT, YEONGCHEON_LON],
-        zoom_start=11
-    )
+    m = folium.Map(location=[YEONGCHEON_LAT, YEONGCHEON_LON], zoom_start=11)
 
     for _, row in df.iterrows():
-
-        popup = f"""
-        <b>{row['문화재명']}</b><br>
-        종목: {row['국가유산종목']}
-        """
-
         folium.Marker(
             [row["위도"], row["경도"]],
-            popup=popup,
-            tooltip=row["문화재명"]
+            tooltip=row["문화재명"],
+            popup=f"{row['문화재명']} ({row['국가유산종목']})"
         ).add_to(m)
 
     st_folium(m, width=1300, height=700)
@@ -253,16 +177,9 @@ elif menu == "문화재 지도":
 # ==========================================================
 elif menu == "HeatMap":
 
-    m = folium.Map(
-        location=[YEONGCHEON_LAT, YEONGCHEON_LON],
-        zoom_start=11
-    )
+    m = folium.Map(location=[YEONGCHEON_LAT, YEONGCHEON_LON], zoom_start=11)
 
-    HeatMap(
-        df[["위도", "경도"]].values.tolist(),
-        radius=18,
-        blur=15
-    ).add_to(m)
+    HeatMap(df[["위도", "경도"]].values.tolist()).add_to(m)
 
     st_folium(m, width=1300, height=700)
 
@@ -271,17 +188,15 @@ elif menu == "HeatMap":
 # ==========================================================
 elif menu == "AI 군집분석":
 
+    df["가치점수"] = 5
+    df["시대점수"] = 5
+
     X = df[["위도", "경도", "가치점수", "시대점수"]]
 
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    model = KMeans(
-        n_clusters=4,
-        random_state=42,
-        n_init=10
-    )
-
+    model = KMeans(n_clusters=4, random_state=42, n_init=10)
     df["cluster"] = model.fit_predict(X_scaled)
 
     fig = px.scatter_mapbox(
@@ -290,8 +205,7 @@ elif menu == "AI 군집분석":
         lon="경도",
         color="cluster",
         hover_name="문화재명",
-        zoom=10,
-        height=700
+        zoom=10
     )
 
     fig.update_layout(mapbox_style="open-street-map")
@@ -299,7 +213,7 @@ elif menu == "AI 군집분석":
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================================
-# 검색
+# 문화재 검색 + 상세보기
 # ==========================================================
 elif menu == "문화재 검색":
 
@@ -307,7 +221,40 @@ elif menu == "문화재 검색":
 
     if keyword:
         result = df[df["문화재명"].str.contains(keyword, na=False)]
-        st.dataframe(result)
+
+        if len(result) == 0:
+            st.warning("검색 결과 없음")
+        else:
+            selected = st.selectbox("문화재 선택", result["문화재명"])
+
+            row = result[result["문화재명"] == selected].iloc[0]
+
+            st.markdown("### 📍 기본 정보")
+            st.write(f"종목: {row['국가유산종목']}")
+            st.write(f"위치: {row['시군구명']}")
+
+            if st.button("🔎 상세 정보 보기"):
+
+                detail = get_detail(
+                    row["ccbaKdcd"],
+                    row["ccbaAsno"],
+                    row["ccbaCtcd"]
+                )
+
+                if detail:
+
+                    if detail["이미지"]:
+                        st.image(detail["이미지"])
+
+                    st.markdown("### 📖 설명")
+                    st.write(detail["내용"])
+
+                    st.markdown("### 🏺 추가 정보")
+                    st.write(f"시대: {detail['시대']}")
+                    st.write(f"소재지: {detail['소재지']}")
+
+                else:
+                    st.error("상세정보 불러오기 실패")
 
 # ==========================================================
 # Gemini 챗봇
@@ -321,15 +268,16 @@ elif menu == "Gemini 챗봇":
         model = genai.GenerativeModel("gemini-1.5-flash")
 
         prompt = f"""
-        너는 문화재 분석 전문가다.
+        너는 문화재 전문가다.
 
-        영천 문화재 수: {len(df)}
-        종목 종류: {', '.join(df['국가유산종목'].unique()[:10])}
+        영천 문화재 데이터:
+        - 총 개수: {len(df)}
+        - 주요 종목: {', '.join(df['국가유산종목'].unique()[:10])}
 
         질문:
         {q}
 
-        학생 발표 수준으로 쉽게 설명해줘.
+        학생 발표 수준으로 설명해라.
         """
 
         response = model.generate_content(prompt)
