@@ -6,7 +6,6 @@
 import streamlit as st
 import pandas as pd
 import folium
-import requests
 
 from streamlit_folium import st_folium
 from folium.plugins import MarkerCluster, HeatMap
@@ -32,12 +31,11 @@ st.markdown("""
 
 # ==========================================================
 # GitHub CSV URL
-# raw.githubusercontent.com 형태로 변경 필요
 # ==========================================================
 CSV_URL = (
     "https://raw.githubusercontent.com/"
     "YOUR_GITHUB_ID/YOUR_REPO/main/"
-    "영천_국가유산_상세_좌표보완.csv"
+    "yc_heritage_detail_enriched.csv"
 )
 
 # ==========================================================
@@ -51,7 +49,9 @@ def load_data():
         encoding="utf-8-sig"
     )
 
+    # ------------------------------------------------------
     # 좌표 숫자형 변환
+    # ------------------------------------------------------
     df["위도"] = pd.to_numeric(
         df["위도"],
         errors="coerce"
@@ -62,13 +62,18 @@ def load_data():
         errors="coerce"
     )
 
+    # ------------------------------------------------------
     # 결측 제거
+    # ------------------------------------------------------
     df = df.dropna(
         subset=["위도", "경도"]
     )
 
     return df
 
+# ==========================================================
+# 데이터 로드
+# ==========================================================
 df = load_data()
 
 # ==========================================================
@@ -103,7 +108,7 @@ era_keyword = st.sidebar.text_input(
 )
 
 # ----------------------------------------------------------
-# 이름 검색
+# 문화재명 검색
 # ----------------------------------------------------------
 name_keyword = st.sidebar.text_input(
     "문화재명 검색"
@@ -114,13 +119,17 @@ name_keyword = st.sidebar.text_input(
 # ==========================================================
 filtered_df = df.copy()
 
+# ----------------------------------------------------------
 # 종목 필터
+# ----------------------------------------------------------
 filtered_df = filtered_df[
     filtered_df["국가유산종목"]
     .isin(selected_types)
 ]
 
-# 시대 검색
+# ----------------------------------------------------------
+# 시대 필터
+# ----------------------------------------------------------
 if era_keyword:
 
     filtered_df = filtered_df[
@@ -132,7 +141,9 @@ if era_keyword:
         )
     ]
 
-# 이름 검색
+# ----------------------------------------------------------
+# 이름 필터
+# ----------------------------------------------------------
 if name_keyword:
 
     filtered_df = filtered_df[
@@ -145,18 +156,21 @@ if name_keyword:
     ]
 
 # ==========================================================
-# 데이터 수 표시
+# 결과 수
 # ==========================================================
 st.subheader(
     f"📌 검색 결과 : {len(filtered_df)}건"
 )
 
 # ==========================================================
-# 지도 생성
+# 영천 중심 좌표
 # ==========================================================
 center_lat = 35.9733
 center_lon = 128.9386
 
+# ==========================================================
+# 지도 생성
+# ==========================================================
 m = folium.Map(
 
     location=[center_lat, center_lon],
@@ -211,16 +225,19 @@ for _, row in filtered_df.iterrows():
     if content == "nan":
         content = ""
 
-    # 내용 너무 길면 자르기
-    short_content = content[:300] + "..."
+    # 내용 길이 제한
+    short_content = content[:350] + "..."
 
     # ------------------------------------------------------
     # popup HTML
     # ------------------------------------------------------
     popup_html = f"""
-    <div style="width:320px">
+    <div style="width:330px">
 
-    <h3 style="margin-bottom:10px;">
+    <h3 style="
+    margin-bottom:10px;
+    color:#0d47a1;
+    ">
     {row['문화재명(국문)']}
     </h3>
 
@@ -232,7 +249,6 @@ for _, row in filtered_df.iterrows():
 
     <b>소재지</b><br>
     {row['소재지상세']}<br><br>
-
     """
 
     # ------------------------------------------------------
@@ -242,7 +258,7 @@ for _, row in filtered_df.iterrows():
 
         popup_html += f"""
         <img src="{img_url}"
-             width="280"
+             width="290"
              style="
              border-radius:10px;
              margin-bottom:10px;
@@ -251,7 +267,7 @@ for _, row in filtered_df.iterrows():
         """
 
     # ------------------------------------------------------
-    # 내용 추가
+    # 설명
     # ------------------------------------------------------
     popup_html += f"""
     <b>설명</b><br>
@@ -259,7 +275,7 @@ for _, row in filtered_df.iterrows():
     <div style="
     max-height:180px;
     overflow-y:auto;
-    line-height:1.5;
+    line-height:1.6;
     font-size:13px;
     ">
 
@@ -282,7 +298,7 @@ for _, row in filtered_df.iterrows():
 
         popup=folium.Popup(
             popup_html,
-            max_width=350
+            max_width=360
         ),
 
         tooltip=row["문화재명(국문)"],
@@ -321,7 +337,7 @@ st.bar_chart(type_count)
 # ==========================================================
 # 데이터 테이블
 # ==========================================================
-st.subheader("📄 데이터 보기")
+st.subheader("📄 국가유산 데이터")
 
 show_cols = [
 
@@ -345,5 +361,5 @@ st.dataframe(
 st.markdown("---")
 
 st.caption(
-    "공공데이터포털 · 국가유산청 OpenAPI · Kakao Local API 활용"
+    "국가유산청 OpenAPI · Kakao Local API 활용"
 )
