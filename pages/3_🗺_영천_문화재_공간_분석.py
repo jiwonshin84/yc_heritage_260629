@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
+import re
 
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap, MarkerCluster
@@ -24,8 +25,178 @@ df = pd.read_csv(
     "data/processed/yc_heritage_detail_enriched.csv"
 )
 
+# =================================================
 # 위경도 결측 제거
-df = df.dropna(subset=["위도", "경도"])
+# =================================================
+
+df = df.dropna(
+    subset=["위도", "경도"]
+)
+
+# =================================================
+# 시대 그룹화 함수
+# =================================================
+
+def simplify_era(text):
+
+    if pd.isna(text):
+        return "기타"
+
+    text = str(text).strip()
+
+    # ---------------------------------------------
+    # 청동기
+    # ---------------------------------------------
+
+    if "청동기" in text:
+        return "청동기"
+
+    # ---------------------------------------------
+    # 신라
+    # ---------------------------------------------
+
+    elif (
+        "통일신라" in text or
+        "신라시대 후기" in text
+    ):
+        return "통일신라"
+
+    elif "신라" in text:
+        return "신라"
+
+    # ---------------------------------------------
+    # 고려
+    # ---------------------------------------------
+
+    elif (
+        "고려시대 초기" in text or
+        "고려 초기" in text
+    ):
+        return "고려초기"
+
+    elif (
+        "고려시대 말기" in text or
+        "고려 말기" in text
+    ):
+        return "고려후기"
+
+    elif "고려" in text:
+        return "고려"
+
+    # ---------------------------------------------
+    # 조선 초기
+    # ---------------------------------------------
+
+    elif (
+        "세종" in text or
+        "태조" in text or
+        "태종" in text or
+        "문종" in text or
+        "단종" in text or
+        "세조" in text or
+        "성종" in text or
+        "연산군" in text or
+        "중종" in text or
+        "인종" in text
+    ):
+        return "조선초기"
+
+    # ---------------------------------------------
+    # 조선 후기
+    # ---------------------------------------------
+
+    elif (
+        "숙종" in text or
+        "영조" in text or
+        "정조" in text or
+        "순조" in text or
+        "철종" in text or
+        "고종" in text or
+        "광해군" in text
+    ):
+        return "조선후기"
+
+    # ---------------------------------------------
+    # 조선시대 초기/후기 직접 표기
+    # ---------------------------------------------
+
+    elif (
+        "조선시대 초기" in text or
+        "조선 초기" in text
+    ):
+        return "조선초기"
+
+    elif (
+        "조선시대 후기" in text or
+        "조선 후기" in text
+    ):
+        return "조선후기"
+
+    # ---------------------------------------------
+    # 조선 일반
+    # ---------------------------------------------
+
+    elif "조선" in text:
+        return "조선"
+
+    # ---------------------------------------------
+    # 대한제국
+    # ---------------------------------------------
+
+    elif "대한제국" in text:
+        return "대한제국"
+
+    # ---------------------------------------------
+    # 연도 기반 추정
+    # ---------------------------------------------
+
+    year_match = re.search(r"\d{4}", text)
+
+    if year_match:
+
+        year = int(year_match.group())
+
+        if year < 700:
+            return "신라"
+
+        elif year < 1400:
+            return "고려"
+
+        elif year < 1600:
+            return "조선초기"
+
+        elif year < 1910:
+            return "조선후기"
+
+    # ---------------------------------------------
+    # 기타
+    # ---------------------------------------------
+
+    return "기타"
+
+# =================================================
+# 시대 그룹 컬럼 생성
+# =================================================
+
+df["시대그룹"] = df["시대"].apply(
+    simplify_era
+)
+
+# =================================================
+# 결측값 처리
+# =================================================
+
+for col in [
+    "국가유산종목",
+    "재질",
+    "노출형태"
+]:
+
+    df[col] = (
+        df[col]
+        .fillna("미상")
+        .astype(str)
+    )
 
 # =================================================
 # 사이드바 필터
@@ -33,25 +204,121 @@ df = df.dropna(subset=["위도", "경도"])
 
 st.sidebar.header("🔎 문화재 필터")
 
-era_list = ["전체"] + sorted(
-    df["시대"].dropna().unique().tolist()
+# -------------------------------------------------
+# 시대
+# -------------------------------------------------
+
+era_options = [
+    "전체"
+] + sorted(
+    df["시대그룹"].unique().tolist()
 )
 
 selected_era = st.sidebar.selectbox(
-    "시대 선택",
-    era_list
+    "시대",
+    era_options
 )
 
+# -------------------------------------------------
+# 국가유산종목
+# -------------------------------------------------
+
+type_options = [
+    "전체"
+] + sorted(
+    df["국가유산종목"]
+    .unique()
+    .tolist()
+)
+
+selected_type = st.sidebar.selectbox(
+    "국가유산종목",
+    type_options
+)
+
+# -------------------------------------------------
+# 재질
+# -------------------------------------------------
+
+material_options = [
+    "전체"
+] + sorted(
+    df["재질"]
+    .unique()
+    .tolist()
+)
+
+selected_material = st.sidebar.selectbox(
+    "재질",
+    material_options
+)
+
+# -------------------------------------------------
+# 노출형태
+# -------------------------------------------------
+
+exposure_options = [
+    "전체"
+] + sorted(
+    df["노출형태"]
+    .unique()
+    .tolist()
+)
+
+selected_exposure = st.sidebar.selectbox(
+    "노출형태",
+    exposure_options
+)
+
+# =================================================
+# 필터 적용
+# =================================================
+
+filtered_df = df.copy()
+
 if selected_era != "전체":
-    df = df[df["시대"] == selected_era]
+
+    filtered_df = filtered_df[
+        filtered_df["시대그룹"] == selected_era
+    ]
+
+if selected_type != "전체":
+
+    filtered_df = filtered_df[
+        filtered_df["국가유산종목"] == selected_type
+    ]
+
+if selected_material != "전체":
+
+    filtered_df = filtered_df[
+        filtered_df["재질"] == selected_material
+    ]
+
+if selected_exposure != "전체":
+
+    filtered_df = filtered_df[
+        filtered_df["노출형태"] == selected_exposure
+    ]
+
+# =================================================
+# 결과 없을 경우
+# =================================================
+
+if len(filtered_df) == 0:
+
+    st.warning(
+        "조건에 맞는 문화재가 없습니다."
+    )
+
+    st.stop()
 
 # =================================================
 # 지도 중심
 # =================================================
 
 center = [
-    df["위도"].mean(),
-    df["경도"].mean()
+    filtered_df["위도"].mean(),
+    filtered_df["경도"].mean()
 ]
 
 # =================================================
@@ -74,7 +341,7 @@ marker_cluster = MarkerCluster().add_to(m)
 # 마커 생성
 # =================================================
 
-for idx, row in df.iterrows():
+for idx, row in filtered_df.iterrows():
 
     heritage_name = row.get(
         "문화재명(국문)",
@@ -85,15 +352,14 @@ for idx, row in df.iterrows():
         row.get("이미지URL", "")
     ).strip()
 
-    # http → https 변환
     image_url = image_url.replace(
         "http://",
         "https://"
     )
 
-    # =================================================
-    # 이미지 HTML
-    # =================================================
+    # -------------------------------------------------
+    # 이미지 html
+    # -------------------------------------------------
 
     if (
         image_url == ""
@@ -102,93 +368,82 @@ for idx, row in df.iterrows():
 
         image_html = """
         <div style="
-            width:240px;
-            height:160px;
+            width:320px;
+            height:220px;
             background:#f2f2f2;
             border-radius:12px;
             display:flex;
             justify-content:center;
             align-items:center;
             color:#777;
-            font-size:14px;
-            margin-bottom:10px;
+            margin:auto;
         ">
-            등록된 이미지 없음
+            이미지 없음
         </div>
         """
 
     else:
 
         image_html = f"""
-        <a href="{image_url}" target="_blank">
+        <div style="text-align:center;">
 
-            <img
-                src="{image_url}"
+            <a href="{image_url}" target="_blank">
 
-                style="
-                    width:240px;
-                    height:160px;
-                    object-fit:cover;
-                    border-radius:12px;
-                    margin-bottom:10px;
-                    cursor:pointer;
-                    box-shadow:0 2px 8px rgba(0,0,0,0.2);
-                "
+                <img
+                    src="{image_url}"
 
-                onerror="
-                    this.style.display='none';
-                    this.parentNode.innerHTML=
-                    '<div style=
-                    \\'width:240px;
-                    height:160px;
-                    background:#f2f2f2;
-                    border-radius:12px;
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    color:#777;
-                    font-size:14px;
-                    \\'>
+                    style="
+                        width:320px;
+                        height:220px;
+                        object-fit:cover;
+                        border-radius:12px;
+                        box-shadow:0 2px 8px rgba(0,0,0,0.2);
+                    "
 
-                    이미지 로드 실패
+                    onerror="
+                        this.style.display='none';
+                    "
+                >
 
-                    </div>';
-                "
-            >
+            </a>
 
-        </a>
+        </div>
         """
 
-    # =================================================
-    # Popup HTML
-    # =================================================
+    # -------------------------------------------------
+    # popup html
+    # -------------------------------------------------
 
     popup_html = f"""
     <div style="
-        width:260px;
-        padding:10px;
+        width:340px;
+        padding:15px;
         text-align:center;
         font-family:sans-serif;
     ">
 
-        <h3 style="
-            margin-bottom:10px;
+        <h2 style="
+            margin-bottom:15px;
             color:#222;
         ">
             {heritage_name}
-        </h3>
+        </h2>
 
         {image_html}
 
+        <br>
+
         <table style="
-            width:100%;
-            font-size:14px;
-            line-height:1.8;
+            width:85%;
+            margin:auto;
+            font-size:15px;
+            line-height:2;
+            text-align:left;
         ">
 
             <tr>
                 <td><b>시대</b></td>
-                <td>{row.get("시대", "-")}</td>
+                <td>{row.get("시대그룹", "-")}</td>
             </tr>
 
             <tr>
@@ -213,6 +468,7 @@ for idx, row in df.iterrows():
         <div style="
             font-size:13px;
             color:#666;
+            white-space:nowrap;
         ">
             이미지를 클릭하면 새 창에서 크게 볼 수 있습니다.
         </div>
@@ -220,24 +476,24 @@ for idx, row in df.iterrows():
     </div>
     """
 
-    # =================================================
-    # IFrame Popup
-    # =================================================
+    # -------------------------------------------------
+    # iframe popup
+    # -------------------------------------------------
 
     iframe = folium.IFrame(
         html=popup_html,
-        width=330,
-        height=450
+        width=380,
+        height=500
     )
 
     popup = folium.Popup(
         iframe,
-        max_width=450
+        max_width=420
     )
 
-    # =================================================
-    # Marker 추가
-    # =================================================
+    # -------------------------------------------------
+    # marker
+    # -------------------------------------------------
 
     folium.Marker(
         location=[
@@ -260,7 +516,7 @@ for idx, row in df.iterrows():
 # HeatMap
 # =================================================
 
-heat_data = df[
+heat_data = filtered_df[
     ["위도", "경도"]
 ].values.tolist()
 
