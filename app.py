@@ -3,6 +3,69 @@
 # ==========================================================
 import streamlit as st
 import pandas as pd
+import requests
+from datetime import datetime
+
+
+# ============================================
+# ASOS 실황 API 설정
+# ============================================
+
+SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
+
+# 영천 관측소
+STN_ID = "281"
+
+# 현재 시간
+now = datetime.now()
+
+tm = now.strftime("%Y%m%d%H00")
+
+url = "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php"
+
+params = {
+    "tm": tm,
+    "stn": STN_ID,
+    "help": 0,
+    "authKey": SERVICE_KEY
+}
+
+# ============================================
+# API 호출
+# ============================================
+
+try:
+    response = requests.get(url, params=params)
+
+    text = response.text
+
+    # 데이터 라인 추출
+    lines = text.split("\n")
+
+    data_line = None
+
+    for line in lines:
+        if line.startswith(tm):
+            data_line = line
+            break
+
+    if data_line:
+
+        cols = data_line.split()
+
+        # 기온(°C)
+        temp = cols[11]
+
+        # 습도(%)
+        humidity = cols[13]
+
+    else:
+        temp = "-"
+        humidity = "-"
+
+except Exception as e:
+    temp = "-"
+    humidity = "-"
 
 # ==========================================================
 # 페이지 설정
@@ -42,25 +105,55 @@ st.subheader("📊 핵심 분석 지표")
 
 c1, c2, c3, c4 = st.columns(4)
 
-c1.metric(
-    "🏛 분석 문화재 수",
-    len(df)
-)
+# 문화재 수
+with c1:
+    st.metric(
+        "🏛 분석 문화재 수",
+        len(df)
+    )
 
-c2.metric(
-    "🌫 평균 미세먼지",
-    "42 ㎍/㎥"
-)
+# 현재 기온
+with c2:
+    st.markdown(
+        f"""
+        <div style="
+            background-color:#f3f6fa;
+            padding:18px;
+            border-radius:15px;
+            text-align:center;
+            box-shadow:0 4px 10px rgba(0,0,0,0.08);
+        ">
+            <h4>🌡 현재 기온</h4>
+            <h2>{temp} °C</h2>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-c3.metric(
-    "🌧 평균 습도",
-    "71%"
-)
+# 현재 습도
+with c3:
+    st.markdown(
+        f"""
+        <div style="
+            background-color:#f3f6fa;
+            padding:18px;
+            border-radius:15px;
+            text-align:center;
+            box-shadow:0 4px 10px rgba(0,0,0,0.08);
+        ">
+            <h4>💧 현재 습도</h4>
+            <h2>{humidity} %</h2>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-c4.metric(
-    "⚠ 고위험 문화재",
-    "18개"
-)
+# 고위험 문화재
+with c4:
+    st.metric(
+        "⚠ 고위험 문화재",
+        "18개"
+    )
 
 st.divider()
 
