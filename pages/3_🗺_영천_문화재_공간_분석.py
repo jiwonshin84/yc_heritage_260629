@@ -1,6 +1,3 @@
-# 영천 문화재 공간분석 전체 코드
-
-```python
 import streamlit as st
 import pandas as pd
 import folium
@@ -29,7 +26,6 @@ df = pd.read_csv(
 )
 
 # 컬럼 공백 제거
-
 df.columns = df.columns.str.strip()
 
 # =================================================
@@ -183,7 +179,7 @@ df["국가유산종목"] = (
 st.sidebar.header("🔎 문화재 필터")
 
 # -------------------------------------------------
-# 시대 순서 지정
+# 시대 순서
 # -------------------------------------------------
 
 era_order = [
@@ -276,14 +272,20 @@ if len(filtered_df) == 0:
     st.stop()
 
 # =================================================
-# 세션 상태 초기화
+# 세션 상태
 # =================================================
 
 if "selected_lat" not in st.session_state:
-    st.session_state.selected_lat = filtered_df.iloc[0]["위도"]
+
+    st.session_state.selected_lat = (
+        filtered_df.iloc[0]["위도"]
+    )
 
 if "selected_lon" not in st.session_state:
-    st.session_state.selected_lon = filtered_df.iloc[0]["경도"]
+
+    st.session_state.selected_lon = (
+        filtered_df.iloc[0]["경도"]
+    )
 
 # =================================================
 # 레이아웃
@@ -294,7 +296,7 @@ map_col, list_col = st.columns(
 )
 
 # =================================================
-# 지도 영역
+# 지도
 # =================================================
 
 with map_col:
@@ -341,7 +343,7 @@ with map_col:
         )
 
         # ---------------------------------------------
-        # 이미지 HTML
+        # 이미지 html
         # ---------------------------------------------
 
         if (
@@ -381,10 +383,6 @@ with map_col:
                             object-fit:cover;
                             border-radius:12px;
                             box-shadow:0 2px 8px rgba(0,0,0,0.2);
-                        "
-
-                        onerror="
-                            this.style.display='none';
                         "
                     >
 
@@ -515,7 +513,9 @@ with map_col:
 
 with list_col:
 
-    st.markdown("## 🏛 문화재 목록")
+    st.markdown(
+        "## 🏛 문화재 목록"
+    )
 
     for idx, row in filtered_df.iterrows():
 
@@ -530,8 +530,12 @@ with list_col:
             use_container_width=True
         ):
 
-            st.session_state.selected_lat = row["위도"]
-            st.session_state.selected_lon = row["경도"]
+            st.session_state.selected_lat = (
+                row["위도"]
+            )
+
+            st.session_state.selected_lon = (
+                row["경도"]
+            )
 
             st.rerun()
-```
