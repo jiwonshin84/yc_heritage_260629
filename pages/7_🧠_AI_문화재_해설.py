@@ -24,15 +24,6 @@ model = genai.GenerativeModel(
 )
 
 # =====================================================
-# 세션 상태
-# =====================================================
-if "prev_category" not in st.session_state:
-    st.session_state.prev_category = None
-
-if "clear_image" not in st.session_state:
-    st.session_state.clear_image = False
-
-# =====================================================
 # 메인 제목
 # =====================================================
 st.title("🤖 AI 문화재 해설")
@@ -90,18 +81,6 @@ try:
             )
         )
 
-    # -------------------------------------------------
-    # 품목 변경 감지
-    # -------------------------------------------------
-    if (
-        st.session_state.prev_category
-        != category
-    ):
-
-        st.session_state.clear_image = True
-
-        st.session_state.prev_category = category
-
     filtered_df = df[
         df[category_col] == category
     ]
@@ -121,54 +100,14 @@ try:
     ].iloc[0]
 
     # =================================================
-    # 문화재 제목
-    # =================================================
-    st.markdown(
-        f"""
-        <div style='
-            background-color:#f8f9fa;
-            padding:6px 12px;
-            border-radius:10px;
-            margin-bottom:10px;
-            border:1px solid #e9ecef;
-        '>
-
-        <h3 style='
-            text-align:center;
-            color:#2c3e50;
-            margin:0;
-            font-size:28px;
-        '>
-
-        🏛 {heritage}
-
-        </h3>
-
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # =================================================
     # 본문 영역
     # =================================================
-    left_col, right_col = st.columns([1, 1.1])
+    left_col, right_col = st.columns([1, 1])
 
     # -------------------------------------------------
-    # 이미지
+    # 이미지 영역
     # -------------------------------------------------
     with left_col:
-
-        image_placeholder = st.empty()
-
-        # ---------------------------------------------
-        # 품목 변경 시 이미지 제거
-        # ---------------------------------------------
-        if st.session_state.clear_image:
-
-            image_placeholder.empty()
-
-            st.session_state.clear_image = False
 
         image_url = row.get(
             "이미지URL",
@@ -180,7 +119,7 @@ try:
             and str(image_url).strip() != ""
         ):
 
-            image_placeholder.image(
+            st.image(
                 image_url,
                 use_container_width=True
             )
@@ -197,22 +136,27 @@ try:
             )
 
     # -------------------------------------------------
-    # 상세정보
+    # 상세 정보 영역
     # -------------------------------------------------
     with right_col:
 
         st.markdown(
-            """
-            <h3 style='
-                margin-top:0;
+            f"""
+            <h2 style='
                 color:#2c3e50;
+                margin-top:0;
+                margin-bottom:20px;
+                font-size:32px;
             '>
-            📋 상세 정보
-            </h3>
+            📋 {heritage}
+            </h2>
             """,
             unsafe_allow_html=True
         )
 
+        # ---------------------------------------------
+        # 상세 정보 데이터
+        # ---------------------------------------------
         info_data = {
 
             "종목":
@@ -252,19 +196,26 @@ try:
                 + " / "
                 + clean(
                     row.get("관리자")
+                ),
+
+            "상세 설명":
+                clean(
+                    row.get("내용")
                 )
         }
 
         # ---------------------------------------------
-        # 상세정보 출력
+        # 상세 정보 출력
         # ---------------------------------------------
         for key, value in info_data.items():
 
             c1, c2 = st.columns(
-                [1, 3],
-                vertical_alignment="center"
+                [1, 3]
             )
 
+            # -----------------------------------------
+            # 왼쪽 제목
+            # -----------------------------------------
             with c1:
 
                 st.markdown(
@@ -274,15 +225,17 @@ try:
                         color:#2c3e50;
                         font-size:16px;
                         line-height:1.8;
+                        padding-top:18px;
                     '>
-
                     {key}
-
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
+            # -----------------------------------------
+            # 오른쪽 내용
+            # -----------------------------------------
             with c2:
 
                 st.markdown(
@@ -291,16 +244,18 @@ try:
                         color:#444;
                         font-size:15px;
                         line-height:1.8;
+                        padding-top:18px;
                         white-space:pre-line;
                     '>
-
                     {value}
-
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
+            # -----------------------------------------
+            # 구분선
+            # -----------------------------------------
             st.markdown(
                 """
                 <hr style='
@@ -311,21 +266,10 @@ try:
                 unsafe_allow_html=True
             )
 
-        # =================================================
-        # 상세 설명
-        # =================================================
-        st.markdown("### 📖 상세 설명")
-
-        content = clean(
-            row.get("내용")
-        )
-
-        st.write(content)
-
     # =================================================
-    # AI 스마트 해설
+    # AI 도슨트 가이드
     # =================================================
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
 
     시대 = clean(row.get("시대"))
     소재지 = clean(row.get("소재지상세"))
@@ -333,65 +277,60 @@ try:
     분류 = clean(row.get("국가유산분류"))
     내용 = clean(row.get("내용"))
 
-    st.markdown("## 🤖 AI 도슨트 가이드")
+    with st.spinner(
+        "AI 도슨트 해설 생성 중..."
+    ):
 
-    if st.button("🤖 AI 도슨트 해설 생성"):
+        guide_prompt = f"""
+        너는 전문 박물관 도슨트이다.
 
-        try:
+        아래 문화재 정보를 바탕으로
+        학생들과 일반인이 흥미롭게
+        이해할 수 있도록 설명해라.
 
-            with st.spinner(
-                "AI 도슨트 해설 생성 중..."
-            ):
+        [문화재 정보]
 
-                guide_prompt = f"""
-                너는 전문 박물관 도슨트이다.
+        이름:
+        {heritage}
 
-                아래 문화재 정보를 바탕으로
-                학생들과 일반인이 흥미롭게
-                이해할 수 있도록 설명해라.
+        종목:
+        {종목}
 
-                이름:
-                {heritage}
+        분류:
+        {분류}
 
-                종목:
-                {종목}
+        시대:
+        {시대}
 
-                분류:
-                {분류}
+        소재지:
+        {소재지}
 
-                시대:
-                {시대}
+        설명:
+        {내용}
 
-                소재지:
-                {소재지}
+        아래 내용을 포함해라.
 
-                설명:
-                {내용}
+        1. 문화재 소개
+        2. 역사적 의미
+        3. 특징
+        4. 영천 지역과의 관련성
+        5. 흥미로운 이야기
 
-                아래 내용을 포함해라.
+        너무 딱딱하지 않게
+        실제 전시관 해설처럼 설명해라.
+        """
 
-                1. 문화재 소개
-                2. 역사적 의미
-                3. 특징
-                4. 영천 지역과의 관련성
-                5. 흥미로운 이야기
+        guide_response = model.generate_content(
+            guide_prompt
+        )
 
-                실제 전시관 도슨트처럼 설명해라.
-                """
+    st.markdown(
+        "## 🤖 AI 도슨트 가이드"
+    )
 
-                guide_response = model.generate_content(
-                    guide_prompt
-                )
-
-                st.write(
-                    guide_response.text
-                )
-
-        except Exception:
-
-            st.error(
-                "Gemini API 사용량 초과 또는 API 오류 발생"
-            )
+    st.write(
+        guide_response.text
+    )
 
     # =================================================
     # Gemini 질문 기능
@@ -416,49 +355,42 @@ try:
 
         else:
 
-            try:
+            with st.spinner(
+                "AI가 답변 생성 중입니다..."
+            ):
 
-                with st.spinner(
-                    "AI가 답변 생성 중입니다..."
-                ):
+                prompt = f"""
+                너는 한국 문화재 전문 AI이다.
 
-                    prompt = f"""
-                    너는 한국 문화재 전문 AI이다.
+                문화재 이름:
+                {heritage}
 
-                    문화재 이름:
-                    {heritage}
+                시대:
+                {시대}
 
-                    시대:
-                    {시대}
+                소재지:
+                {소재지}
 
-                    소재지:
-                    {소재지}
+                문화재 설명:
+                {내용}
 
-                    문화재 설명:
-                    {내용}
+                사용자 질문:
+                {user_question}
 
-                    사용자 질문:
-                    {user_question}
+                쉽고 친절하게
+                답변해라.
+                """
 
-                    쉽고 친절하게 답변해라.
-                    """
+                response = model.generate_content(
+                    prompt
+                )
 
-                    response = model.generate_content(
-                        prompt
-                    )
+                st.markdown(
+                    "### 🤖 AI 답변"
+                )
 
-                    st.markdown(
-                        "### 🤖 AI 답변"
-                    )
-
-                    st.write(
-                        response.text
-                    )
-
-            except Exception:
-
-                st.error(
-                    "Gemini API 사용량 초과 또는 API 오류 발생"
+                st.write(
+                    response.text
                 )
 
 # =====================================================
@@ -467,6 +399,6 @@ try:
 except Exception as e:
 
     st.error(
-        "데이터를 불러오거나 처리하는 중 오류가 발생했습니다.\n\n"
+        "데이터 처리 중 오류 발생\n\n"
         + str(e)
     )
