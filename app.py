@@ -152,8 +152,9 @@ with c3:
 with c4:
     st.metric(
         "⚠ 고위험 문화재",
-        "18개"
+        "18개1111"
     )
+
 
 st.divider()
 
