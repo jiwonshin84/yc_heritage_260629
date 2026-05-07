@@ -17,7 +17,7 @@ AI 기반 훼손 위험 예측 모델을 개발합니다.
 """)
 
 # 데이터 로드
-df = pd.read_csv("data/processed/영천문화재_좌표보완.csv")
+df = pd.read_csv("data/processed/yc_heritage_detail_enriched.csv")
 
 # 통계 카드
 c1, c2, c3, c4 = st.columns(4)
