@@ -15,6 +15,13 @@ from zoneinfo import ZoneInfo
 
 SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
 
+
+URL = (
+    "https://apis.data.go.kr/"
+    "1360000/AsosHourlyInfoService/getWthrDataList"
+)
+
+
 # 영천 관측소
 STN_ID = "281"
 
