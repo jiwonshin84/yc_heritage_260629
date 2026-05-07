@@ -139,7 +139,7 @@ try:
                 margin-bottom:15px;
                 font-size:24px;
             ">
-            📋 상세 정보
+            📋 {heritage}
             </h2>
             """,
             unsafe_allow_html=True
