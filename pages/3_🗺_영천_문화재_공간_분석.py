@@ -167,6 +167,7 @@ for idx, row in df.iterrows():
     <div style="
         width:260px;
         padding:10px;
+        text-align:center;
         font-family:sans-serif;
     ">
 
@@ -225,7 +226,7 @@ for idx, row in df.iterrows():
 
     iframe = folium.IFrame(
         html=popup_html,
-        width=300,
+        width=330,
         height=450
     )
 
