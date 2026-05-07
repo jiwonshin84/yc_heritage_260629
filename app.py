@@ -5,77 +5,103 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 # ============================================
-# ASOS 실황 API 설정
+# 기상청 지상(종관, ASOS) 시간자료 조회서비스
+# 전날 최신 자료 조회
 # ============================================
+
 
 SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
 
 # 영천 관측소
 STN_ID = "281"
 
-# UTC → 한국시간 변환
-now = datetime.utcnow() + timedelta(hours=9)
+# ============================================
+# 한국시간 기준
+# ============================================
 
-# 1시간 이전 데이터 사용
-base_time = now - timedelta(hours=1)
+now = datetime.now(ZoneInfo("Asia/Seoul"))
 
-tm = base_time.strftime("%Y%m%d%H00")
+# 전날 날짜
+yesterday = now - timedelta(days=1)
 
-st.write("현재 한국시간:", now)
-st.write("요청 시간:", tm)
+# 전날 마지막 시간(23시)
+base_date = yesterday.strftime("%Y%m%d")
+base_hour = "23"
 
-url = "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php"
+print("현재 한국시간:", now)
+print("조회 날짜:", base_date)
+print("조회 시간:", base_hour)
+
+# ============================================
+# API 요청 파라미터
+# ============================================
 
 params = {
-    "tm": tm,
-    "stn": STN_ID,
-    "help": 0,
-    "authKey": SERVICE_KEY
+    "serviceKey": SERVICE_KEY,
+    "pageNo": "1",
+    "numOfRows": "1",
+    "dataType": "JSON",
+
+    "dataCd": "ASOS",
+    "dateCd": "HR",
+
+    # 전날 23시 데이터
+    "startDt": base_date,
+    "startHh": base_hour,
+
+    "endDt": base_date,
+    "endHh": base_hour,
+
+    # 관측소
+    "stnIds": STN_ID
 }
 
 # ============================================
-# API 호출
+# API 요청
+# ============================================
+
+response = requests.get(
+    URL,
+    params=params,
+    timeout=30
+)
+
+print("응답코드:", response.status_code)
+
+data = response.json()
+
+print(data)
+
+# ============================================
+# 데이터 추출
 # ============================================
 
 try:
-    response = requests.get(url, params=params)
 
-    text = response.text
+    item = data["response"]["body"]["items"]["item"][0]
 
-    # 데이터 라인 추출
-    lines = text.split("\n")
+    # 관측 시각
+    tm = item["tm"]
 
-    data_line = None
+    # 기온
+    temp = item["ta"]
 
-    for line in lines:
-        if line.startswith(tm):
-            data_line = line
-            break
+    # 습도
+    humidity = item["hm"]
 
-    if data_line:
+    # 강수량
+    rainfall = item["rn"]
 
-        cols = data_line.split()
-
-        # 기온(°C)
-        temp = cols[11]
-
-        # 습도(%)
-        humidity = cols[13]
-
-    else:
-        temp = "-"
-        humidity = "-"
+    # 풍속
+    wind_speed = item["ws"]
 
 except Exception as e:
-    temp = "-"
-    humidity = "-"
 
-st.write("현재 한국시간:", now)
-st.write("요청 시간:", tm)
-st.write("기온:", temp)
-st.write("습도:", humidity)
+    print("데이터 조회 실패")
+    print(e)
 
 
 # ==========================================================
@@ -114,7 +140,7 @@ st.divider()
 # ==========================================================
 st.subheader("📊 핵심 분석 지표")
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 
 # 문화재 수
 with c1:
@@ -123,49 +149,40 @@ with c1:
         len(df)
     )
 
-# 현재 기온
+# 전날 기온
 with c2:
-    st.markdown(
-        f"""
-        <div style="
-            background-color:#f3f6fa;
-            padding:18px;
-            border-radius:15px;
-            text-align:center;
-            box-shadow:0 4px 10px rgba(0,0,0,0.08);
-        ">
-            <h4>🌡 현재 기온</h4>
-            <h2>{temp} °C</h2>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.metric(
+        "🌡 전날 기온",
+        f"{temp} °C"
     )
 
-# 현재 습도
+# 전날 습도
 with c3:
-    st.markdown(
-        f"""
-        <div style="
-            background-color:#f3f6fa;
-            padding:18px;
-            border-radius:15px;
-            text-align:center;
-            box-shadow:0 4px 10px rgba(0,0,0,0.08);
-        ">
-            <h4>💧 현재 습도</h4>
-            <h2>{humidity} %</h2>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.metric(
+        "💧 전날 습도",
+        f"{humidity} %"
+    )
+
+# 전날 강수량
+with c4:
+    st.metric(
+        "🌧 전날 강수량",
+        f"{rainfall} mm"
+    )
+
+# 전날 풍속
+with c5:
+    st.metric(
+        "💨 전날 풍속",
+        f"{wind_speed} m/s"
     )
 
 # 고위험 문화재
-with c4:
+with c6:
     st.metric(
         "⚠ 고위험 문화재",
-        "18개1111"
+        "18개"
     )
-
 
 st.divider()
 
