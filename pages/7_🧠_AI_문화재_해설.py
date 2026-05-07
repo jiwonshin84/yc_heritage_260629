@@ -35,7 +35,7 @@ try:
     row = filtered_df[filtered_df["문화재명(국문)"] == heritage].iloc[0]
 
     st.markdown(
-        "<div style='background-color:#f8f9fa; padding:20px; border-radius:15px; margin-bottom:30px; border:1px solid #e9ecef;'>"
+        "<div style='background-color:#f8f9fa; padding:10px; border-radius:10px; margin-bottom:15px; border:1px solid #e9ecef;'>"
         "<h2 style='text-align:center; color:#2c3e50; margin:0;'>🏛 " + heritage + "</h2>"
         "</div>",
         unsafe_allow_html=True
