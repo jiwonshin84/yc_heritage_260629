@@ -1,247 +1,100 @@
 import streamlit as st
 import pandas as pd
 
-# =========================================================
-# 페이지 설정
-# =========================================================
-st.set_page_config(
-    page_title="AI 문화재 해설",
-    layout="wide"
-)
-
-# =========================================================
-# 제목
-# =========================================================
 st.markdown("""
-<h1 style='
-    text-align:center;
-    font-size:50px;
-    margin-bottom:40px;
-'>
+<h1 style='font-size:40px; text-align:center;'>
 🤖 AI 문화재 해설
 </h1>
 """, unsafe_allow_html=True)
 
-# =========================================================
 # 데이터 불러오기
-# =========================================================
 df = pd.read_csv(
     "data/processed/yc_heritage_detail_enriched.csv"
 )
 
-# =========================================================
+# =========================
 # 품목 선택
-# =========================================================
+# =========================
 category = st.selectbox(
     "문화재 품목 선택",
-    sorted(df["국가유산종목"].dropna().unique())
+    sorted(df["종목"].dropna().unique())
 )
 
-# 품목 필터링
+# 선택한 품목만 필터링
 filtered_df = df[
-    df["국가유산종목"] == category
+    df["종목"] == category
 ]
 
-# =========================================================
+# =========================
 # 문화재 선택
-# =========================================================
+# =========================
 heritage = st.selectbox(
     "문화재 선택",
     filtered_df["문화재명(국문)"]
 )
 
-# 선택된 행
+# 선택 데이터
 row = filtered_df[
     filtered_df["문화재명(국문)"] == heritage
 ].iloc[0]
 
-# =========================================================
-# 문화재 제목
-# =========================================================
-st.markdown(f"""
-<h2 style='
-    text-align:center;
-    font-size:42px;
-    margin-top:30px;
-    margin-bottom:30px;
-'>
-🏛 {heritage}
-</h2>
-""", unsafe_allow_html=True)
+# =========================
+# 제목
+# =========================
+st.subheader(heritage)
 
-# =========================================================
-# 좌우 컬럼
-# =========================================================
-left_col, right_col = st.columns([1, 1.5])
+# =========================
+# 이미지 표시
+# =========================
+# CSV 안 이미지 URL 컬럼명 확인 필요
+# 예시: "imageUrl" 또는 "이미지URL"
 
-# =========================================================
-# 왼쪽 : 이미지
-# =========================================================
-with left_col:
+image_url = row.get("imageUrl", None)
 
-    # 실제 이미지 URL 컬럼명에 맞게 수정
-    image_url = row.get("imageUrl", None)
-
-    if pd.notna(image_url):
-
-        st.image(
-            image_url,
-            use_container_width=True
-        )
-
-    else:
-        st.warning("이미지 없음")
-
-# =========================================================
-# 오른쪽 : 상세 정보
-# =========================================================
-with right_col:
-
-    info_html = f"""
-    <table style="
-        width:100%;
-        border-collapse:collapse;
-        font-size:16px;
-    ">
-
-    <tr>
-        <td style="font-weight:bold; width:30%; padding:8px;">
-            국가유산종목
-        </td>
-        <td style="padding:8px;">
-            {row['국가유산종목']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            국가유산분류
-        </td>
-        <td style="padding:8px;">
-            {row['국가유산분류']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            국가유산분류2
-        </td>
-        <td style="padding:8px;">
-            {row['국가유산분류2']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            국가유산분류3
-        </td>
-        <td style="padding:8px;">
-            {row['국가유산분류3']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            국가유산분류4
-        </td>
-        <td style="padding:8px;">
-            {row['국가유산분류4']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            문화재명(국문)
-        </td>
-        <td style="padding:8px;">
-            {row['문화재명(국문)']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            문화재명(한자)
-        </td>
-        <td style="padding:8px;">
-            {row['문화재명(한자)']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            소재지상세
-        </td>
-        <td style="padding:8px;">
-            {row['소재지상세']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            시대
-        </td>
-        <td style="padding:8px;">
-            {row['시대']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            소유자
-        </td>
-        <td style="padding:8px;">
-            {row['소유자']}
-        </td>
-    </tr>
-
-    <tr>
-        <td style="font-weight:bold; padding:8px;">
-            관리자
-        </td>
-        <td style="padding:8px;">
-            {row['관리자']}
-        </td>
-    </tr>
-
-    </table>
-    """
-
-    st.markdown(
-        info_html,
-        unsafe_allow_html=True
+if pd.notna(image_url):
+    st.image(
+        image_url,
+        caption=heritage,
+        use_container_width=True
     )
 
-# =========================================================
-# 설명
-# =========================================================
-st.markdown("---")
+# =========================
+# 기본 정보
+# =========================
+col1, col2 = st.columns(2)
 
-st.markdown("""
-<h3 style='font-size:28px;'>
-📖 문화재 설명
-</h3>
-""", unsafe_allow_html=True)
+with col1:
+    st.write("### 시대")
+    st.info(row["시대"])
+
+with col2:
+    st.write("### 종목")
+    st.info(row["종목"])
+
+# =========================
+# 설명
+# =========================
+st.write("### 설명")
 
 content = str(row["내용"])
 
-st.info(content)
+if len(content) > 500:
+    content = content[:500] + "..."
 
-# =========================================================
+st.write(content)
+
+# =========================
 # AI 해설
-# =========================================================
-st.markdown("""
-<h3 style='font-size:28px; margin-top:30px;'>
-🤖 AI 해설
-</h3>
-""", unsafe_allow_html=True)
+# =========================
+st.write("### 🤖 AI 해설")
 
 st.success(f"""
 {heritage}은(는)
-{row['시대']} 시대의 문화재로,
 
-영천 지역의 역사와 문화를
-잘 보여주는 중요한 국가유산입니다.
+{row["시대"]} 시대에 만들어진
+{row["종목"]} 문화재입니다.
 
-특히 {row['국가유산분류']} 분야에서
-높은 역사적 가치를 지니고 있습니다.
+역사적·문화적 가치가 높으며,
+영천 지역의 역사와 문화를 이해하는 데
+중요한 국가유산입니다.
 """)
