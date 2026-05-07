@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
-
+import pytz
 
 # ============================================
 # ASOS 실황 API 설정
@@ -16,13 +16,20 @@ SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
 # 영천 관측소
 STN_ID = "281"
 
-# UTC → 한국시간 변환
-now = datetime.utcnow() + timedelta(hours=9)
+# 한국시간 설정
+kst = pytz.timezone("Asia/Seoul")
 
-# 1시간 이전 데이터 사용 - 기상청 ASOS 실황은 보통 정시 기준
+# 현재 한국시간
+now = datetime.now(kst)
+
+# ASOS 반영 지연 고려 → 1시간 전 사용
 base_time = now - timedelta(hours=1)
 
+# 요청시간 생성
 tm = base_time.strftime("%Y%m%d%H00")
+
+st.write("현재 한국시간:", now)
+st.write("요청 시간:", tm)
 
 url = "https://apihub.kma.go.kr/api/typ01/url/kma_sfctm3.php"
 
