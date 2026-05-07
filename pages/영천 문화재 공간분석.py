@@ -8,7 +8,7 @@ from folium.plugins import HeatMap
 st.title("🗺 영천 문화재 공간분석")
 
 df = pd.read_csv(
-    "data/processed/영천문화재_좌표보완.csv"
+    "data/processed/yc_heritage_detail_enriched.csv"
 )
 
 center = [
