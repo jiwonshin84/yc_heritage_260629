@@ -298,7 +298,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 left2, right2 = st.columns([1, 1])
 
 # =================================================
-# 3. 문화유산 중요도 시각화
+# 3. 경북 지역 문화유산 현황
 # =================================================
 
 with left2:
@@ -308,40 +308,62 @@ with left2:
     font-size:24px;
     margin-bottom:10px;
     ">
-    ⭐ 문화유산 종목 중요도
+    🏞 경북 지역 문화유산 분포
     </h3>
     """, unsafe_allow_html=True)
 
-    importance_df = (
+    # -------------------------------------------------
+    # 경북 데이터만 추출
+    # -------------------------------------------------
 
-        df.groupby("국가유산종목")["중요도점수"]
-        .mean()
+    gb_df = df[
+        df["시도명"] == "경북"
+    ].copy()
+
+    # -------------------------------------------------
+    # 시군구별 개수 집계
+    # -------------------------------------------------
+
+    city_count = (
+
+        gb_df["시군구명"]
+        .value_counts()
         .reset_index()
 
     )
 
-    importance_df = (
-        importance_df
-        .sort_values(
-            by="중요도점수",
-            ascending=False
-        )
+    city_count.columns = [
+        "시군구명",
+        "개수"
+    ]
+
+    # -------------------------------------------------
+    # 상위 15개만 표시
+    # -------------------------------------------------
+
+    city_count = (
+        city_count
+        .head(15)
     )
+
+    # -------------------------------------------------
+    # Horizontal Bar Chart
+    # -------------------------------------------------
 
     fig3 = px.bar(
 
-        importance_df,
+        city_count,
 
-        x="중요도점수",
-        y="국가유산종목",
+        x="개수",
+        y="시군구명",
 
         orientation="h",
 
-        color="중요도점수",
+        color="개수",
 
-        color_continuous_scale="Sunset",
+        color_continuous_scale="Tealgrn",
 
-        text="중요도점수"
+        text="개수"
 
     )
 
@@ -356,15 +378,21 @@ with left2:
             b=10
         ),
 
-        xaxis_title="중요도 점수",
+        xaxis_title="문화유산 수",
 
-        yaxis_title=""
+        yaxis_title="",
+
+        coloraxis_showscale=False
 
     )
 
     fig3.update_traces(
 
-        textposition="outside"
+        textposition="outside",
+
+        hovertemplate=
+        "<b>%{y}</b><br>" +
+        "문화유산 수: %{x}개"
 
     )
 
@@ -372,87 +400,6 @@ with left2:
         fig3,
         use_container_width=True
     )
-
-# =================================================
-# 4. Sunburst Chart
-# =================================================
-
-with right2:
-
-    st.markdown("""
-    <h3 style="
-    font-size:24px;
-    margin-bottom:10px;
-    ">
-    🌞 문화유산 분류 구조
-    </h3>
-    """, unsafe_allow_html=True)
-
-    # -------------------------------------------------
-    # 필요한 컬럼만 추출
-    # -------------------------------------------------
-
-    sunburst_df = df[[
-        "국가유산종목",
-        "국가유산분류"
-    ]].copy()
-
-    # -------------------------------------------------
-    # 결측값 제거
-    # -------------------------------------------------
-
-    sunburst_df = (
-        sunburst_df
-        .dropna()
-    )
-
-    # -------------------------------------------------
-    # 문자열 변환
-    # -------------------------------------------------
-
-    sunburst_df["국가유산종목"] = (
-        sunburst_df["국가유산종목"]
-        .astype(str)
-    )
-
-    sunburst_df["국가유산분류"] = (
-        sunburst_df["국가유산분류"]
-        .astype(str)
-    )
-
-    # -------------------------------------------------
-    # Sunburst Chart
-    # -------------------------------------------------
-
-    fig4 = px.sunburst(
-
-        sunburst_df,
-
-        path=[
-            "국가유산종목",
-            "국가유산분류"
-        ]
-
-    )
-
-    fig4.update_layout(
-
-        height=500,
-
-        margin=dict(
-            t=20,
-            l=10,
-            r=10,
-            b=10
-        )
-
-    )
-
-    st.plotly_chart(
-        fig4,
-        use_container_width=True
-    )
-
 # =================================================
 # 하단 설명
 # =================================================
