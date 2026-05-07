@@ -75,23 +75,23 @@ try:
     # =================================================
     st.markdown(
         f"""
-        <div style="
+        <div style='
             background-color:#f8f9fa;
             border:1px solid #e9ecef;
             border-radius:12px;
             padding:12px;
             margin-bottom:18px;
-        ">
-
-            <h3 style="
+        '>
+    
+            <h3 style='
                 text-align:center;
                 margin:0;
                 color:#2c3e50;
                 font-size:28px;
-            ">
+            '>
                 🏛 {heritage}
             </h3>
-
+    
         </div>
         """,
         unsafe_allow_html=True
