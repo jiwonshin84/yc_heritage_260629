@@ -403,9 +403,10 @@ try:
 
         except Exception:
 
-            st.error(
-                "Gemini API 사용량 초과 또는 API 오류 발생"
-            )
+            st.error(f"Gemini 오류 상세: {e}")
+            #st.error(
+            #    "Gemini API 사용량 초과 또는 API 오류 발생"
+            #)
 
     # =================================================
     # Gemini 질문 기능
