@@ -298,7 +298,8 @@ st.markdown("<br>", unsafe_allow_html=True)
 left2, right2 = st.columns([1, 1])
 
 # =================================================
-# 3. 경북 지역 문화유산 현황
+# 경북 지역 문화유산 분포
+# Polar Bar Chart
 # =================================================
 
 with left2:
@@ -308,21 +309,17 @@ with left2:
     font-size:24px;
     margin-bottom:10px;
     ">
-    🏞 경북 지역 문화유산 분포
+    🌀 경북 지역 문화유산 분포
     </h3>
     """, unsafe_allow_html=True)
 
     # -------------------------------------------------
-    # 경북 데이터만 추출
+    # 경북 데이터
     # -------------------------------------------------
 
     gb_df = df[
         df["시도명"] == "경북"
     ].copy()
-
-    # -------------------------------------------------
-    # 시군구별 개수 집계
-    # -------------------------------------------------
 
     city_count = (
 
@@ -337,39 +334,32 @@ with left2:
         "개수"
     ]
 
-    # -------------------------------------------------
-    # 상위 15개만 표시
-    # -------------------------------------------------
-
     city_count = (
         city_count
         .head(15)
     )
 
     # -------------------------------------------------
-    # Horizontal Bar Chart
+    # Polar Bar
     # -------------------------------------------------
 
-    fig3 = px.bar(
+    fig3 = px.bar_polar(
 
         city_count,
 
-        x="개수",
-        y="시군구명",
+        r="개수",
 
-        orientation="h",
+        theta="시군구명",
 
         color="개수",
 
-        color_continuous_scale="Tealgrn",
-
-        text="개수"
+        color_continuous_scale="Tealgrn"
 
     )
 
     fig3.update_layout(
 
-        height=500,
+        height=550,
 
         margin=dict(
             t=20,
@@ -378,21 +368,7 @@ with left2:
             b=10
         ),
 
-        xaxis_title="문화유산 수",
-
-        yaxis_title="",
-
         coloraxis_showscale=False
-
-    )
-
-    fig3.update_traces(
-
-        textposition="outside",
-
-        hovertemplate=
-        "<b>%{y}</b><br>" +
-        "문화유산 수: %{x}개"
 
     )
 
