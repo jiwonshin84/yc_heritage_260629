@@ -232,7 +232,7 @@ for idx, row in df.iterrows():
 
     popup = folium.Popup(
         iframe,
-        max_width=410
+        max_width=450
     )
 
     # =================================================
