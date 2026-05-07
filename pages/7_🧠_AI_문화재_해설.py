@@ -17,12 +17,23 @@ GEMINI_API_KEY = "여기에_본인_API_KEY"
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel(
+    "gemini-1.5-flash"
+)
 
 # =====================================================
 # 메인 제목
 # =====================================================
 st.title("🤖 AI 문화재 해설")
+
+# =====================================================
+# 세션 상태 초기화
+# =====================================================
+if "prev_category" not in st.session_state:
+    st.session_state.prev_category = None
+
+if "clear_image" not in st.session_state:
+    st.session_state.clear_image = False
 
 # =====================================================
 # 데이터 로드
@@ -70,8 +81,24 @@ try:
 
         category = st.selectbox(
             "📂 문화재 품목 선택",
-            sorted(df[category_col].dropna().unique())
+            sorted(
+                df[category_col]
+                .dropna()
+                .unique()
+            )
         )
+
+    # -------------------------------------------------
+    # 품목 변경 감지
+    # -------------------------------------------------
+    if (
+        st.session_state.prev_category
+        != category
+    ):
+
+        st.session_state.clear_image = True
+
+        st.session_state.prev_category = category
 
     filtered_df = df[
         df[category_col] == category
@@ -101,17 +128,38 @@ try:
     # -------------------------------------------------
     with left_col:
 
-        image_url = row.get("이미지URL", None)
+        image_placeholder = st.empty()
 
-        if pd.notna(image_url) and str(image_url).strip() != "":
+        # ---------------------------------------------
+        # 품목 변경 시 이미지 제거
+        # ---------------------------------------------
+        if st.session_state.clear_image:
 
-            st.image(
+            image_placeholder.empty()
+
+            st.session_state.clear_image = False
+
+        image_url = row.get(
+            "이미지URL",
+            None
+        )
+
+        # ---------------------------------------------
+        # 이미지 출력
+        # ---------------------------------------------
+        if (
+            pd.notna(image_url)
+            and str(image_url).strip() != ""
+        ):
+
+            image_placeholder.image(
                 image_url,
                 use_container_width=True
             )
 
             st.caption(
-                "출처: 국가유산청 - " + heritage
+                "출처: 국가유산청 - "
+                + heritage
             )
 
         else:
@@ -162,15 +210,20 @@ try:
             "소유자/관리자":
                 clean(row.get("소유자"))
                 + " / "
-                + clean(row.get("관리자"))
+                + clean(row.get("관리자")),
+
+            "상세 설명":
+                clean(row.get("내용"))
         }
 
         # ---------------------------------------------
-        # 상세정보 출력
+        # 상세 정보 출력
         # ---------------------------------------------
         for key, value in info_data.items():
 
-            c1, c2 = st.columns([1, 2.2])
+            c1, c2 = st.columns(
+                [1, 3]
+            )
 
             with c1:
 
@@ -180,7 +233,7 @@ try:
                         font-weight:700;
                         color:#2c3e50;
                         font-size:16px;
-                        padding-top:5px;
+                        padding-top:18px;
                     '>
                     {key}
                     </div>
@@ -195,7 +248,9 @@ try:
                     <div style='
                         color:#444;
                         font-size:15px;
-                        line-height:1.6;
+                        line-height:1.8;
+                        padding-top:18px;
+                        white-space:pre-line;
                     '>
                     {value}
                     </div>
@@ -213,91 +268,12 @@ try:
                 unsafe_allow_html=True
             )
 
-        # =================================================
-        # 상세 설명
-        # =================================================
-        st.markdown("### 📖 상세 설명")
-
-        content = clean(row.get("내용"))
-
-        st.write(content)
-
-    # =================================================
-    # AI 스마트 해설
-    # =================================================
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    시대 = clean(row.get("시대"))
-    소재지 = clean(row.get("소재지상세"))
-    종목 = clean(row.get(category_col))
-
-    st.success(f"""
-### 🤖 AI 도슨트 가이드
-
-**{heritage}**은(는)
-**{시대}** 시대의 숨결을 간직한 소중한 유산입니다.
-
-현재 **{소재지}**에 보존되어 있으며,
-**{종목}**으로서 학술적 가치가 매우 높습니다.
-
-특히 이 유산은
-영천 지역의 역사적 정체성을 잘 보여주는 중요한 지표가 됩니다.
-""")
-
-    # =================================================
-    # Gemini AI 질문하기
-    # =================================================
-    st.markdown("---")
-
-    st.subheader("💬 AI에게 문화재 질문하기")
-
-    user_question = st.text_input(
-        "문화재에 대해 궁금한 점을 입력하세요"
-    )
-
-    if st.button("🤖 질문하기"):
-
-        if user_question.strip() == "":
-
-            st.warning("질문을 입력해주세요.")
-
-        else:
-
-            with st.spinner("AI가 답변 생성 중입니다..."):
-
-                prompt = f"""
-                너는 한국 문화재 전문 도슨트 AI이다.
-
-                문화재 이름:
-                {heritage}
-
-                문화재 설명:
-                {content}
-
-                시대:
-                {시대}
-
-                소재지:
-                {소재지}
-
-                사용자 질문:
-                {user_question}
-
-                친절하고 이해하기 쉽게 답변해줘.
-                """
-
-                response = model.generate_content(prompt)
-
-                st.markdown("### 🤖 AI 답변")
-
-                st.write(response.text)
-
 # =====================================================
 # 오류 처리
 # =====================================================
 except Exception as e:
 
     st.error(
-        "데이터를 불러오거나 처리하는 중 오류가 발생했습니다.\n\n"
+        "데이터 처리 중 오류 발생\n\n"
         + str(e)
     )
