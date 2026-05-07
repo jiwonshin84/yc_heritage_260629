@@ -13,16 +13,16 @@ df = pd.read_csv(
 )
 
 # =========================
-# 품목 선택
+# 종목 선택
 # =========================
 category = st.selectbox(
-    "문화재 품목 선택",
-    sorted(df["종목"].dropna().unique())
+    "문화재 종목 선택",
+    sorted(df["국가유산종목"].dropna().unique())
 )
 
-# 선택한 품목만 필터링
+# 선택한 종목만 필터링
 filtered_df = df[
-    df["종목"] == category
+    df["국가유산종목"] == category
 ]
 
 # =========================
