@@ -225,8 +225,8 @@ for idx, row in df.iterrows():
 
     iframe = folium.IFrame(
         html=popup_html,
-        width=420,
-        height=400
+        width=300,
+        height=450
     )
 
     popup = folium.Popup(
