@@ -260,7 +260,7 @@ st.divider()
 st.subheader("📊 영천 문화재 환경 현황")
 
 # 3개 영역
-left, center, right = st.columns([1.3, 2.2, 1.2])
+left, center, right = st.columns([1.4, 2.2, 1.0])
 
 # ============================================
 # 1열 : 기상 정보
@@ -270,25 +270,36 @@ with left:
 
     st.markdown("### 🌦 기상 환경")
 
-    st.metric(
-        "🌡 기온",
-        f"{temp} °C"
-    )
+    # 2열 구성
+    w1, w2 = st.columns(2)
 
-    st.metric(
-        "💧 습도",
-        f"{humidity} %"
-    )
+    with w1:
 
-    st.metric(
-        "🌧 강수량",
-        f"{rainfall} mm"
-    )
+        st.metric(
+            "🌡 기온",
+            f"{temp} °C"
+        )
 
-    st.metric(
-        "💨 풍속",
-        f"{wind_speed} m/s"
-    )
+        st.metric(
+            "🌧 강수량",
+            f"{rainfall} mm"
+        )
+
+    with w2:
+
+        st.metric(
+            "💧 습도",
+            f"{humidity} %"
+        )
+
+        st.metric(
+            "💨 풍속",
+            f"{wind_speed} m/s"
+        )
+
+    # 기상 측정 시각
+    st.caption(f"⏱ 기상 측정 시각: {tm}")
+
 
 # ============================================
 # 2열 : 대기오염 정보
@@ -333,7 +344,6 @@ with right:
     )
 
 st.divider()
-
 
 # ==========================================================
 # 연구 배경
