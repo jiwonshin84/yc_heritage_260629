@@ -9,7 +9,7 @@ from folium.plugins import HeatMap, MarkerCluster
 # 페이지 설정
 # =================================================
 st.set_page_config(
-    page_title="영천 국가유산 공간 정보 시스템",
+    page_title="영천 국가유산 공간 정보",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -79,7 +79,7 @@ df = load_data()
 # =================================================
 # 제목
 # =================================================
-st.title("🛰️ 영천 국가유산 공간 정보 시스템")
+st.title("🛰️ 영천 국가유산 공간 정보")
 
 # =================================================
 # 사이드바 필터 및 검색
@@ -197,7 +197,7 @@ with list_col:
                 st.rerun()
             
             st.caption(f"{addr}")
-            st.markdown("---")
+            #st.markdown("---")
 
 # 하단 정보 바 (통계)
 st.divider()
