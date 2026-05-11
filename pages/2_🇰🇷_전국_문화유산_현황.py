@@ -353,7 +353,7 @@ with left2:
 
         color="개수",
 
-        color_continuous_scale="Tealgrn"
+        color_continuous_scale="Tealgrn",
 
         text="개수"
 
