@@ -32,11 +32,12 @@ st.divider()
 @st.cache_data
 def load_data():
     try:
+        # 데이터 파일 경로 (환경에 맞춰 수정하세요)
         df = pd.read_csv("data/raw/all_heritage.csv")
         df.columns = df.columns.str.strip()
         return df
-    except:
-        st.error("데이터 파일을 찾을 수 없습니다. 경로를 확인해주세요.")
+    except Exception as e:
+        st.error(f"데이터 파일을 찾을 수 없습니다: {e}")
         return None
 
 df = load_data()
@@ -152,7 +153,7 @@ if df is not None:
         fig5.update_layout(height=550, margin=dict(t=20, l=10, r=10, b=10), coloraxis_showscale=False)
         st.plotly_chart(fig5, use_container_width=True)
 
-with row3_left:
+    with row3_left:
         st.markdown("### 🏺 지역별 국보 · 보물 비중 (비율 높은 순)")
         
         # 1. 데이터 준비
@@ -162,7 +163,7 @@ with row3_left:
         ratio_df = pd.merge(total_count, treasure_count, on="시군구명", how="left").fillna(0)
         ratio_df["비율"] = (ratio_df["국보보물개수"] / ratio_df["전체개수"]) * 100
         
-        # [정렬 기준 변경] '비율'이 높은 순서대로 상위 15개 추출
+        # [정렬 기준] '비율'이 높은 순서대로 상위 15개 추출
         ratio_df = ratio_df.sort_values("비율", ascending=False).head(15)
 
         # 2. 중첩 막대 차트 생성
@@ -180,7 +181,7 @@ with row3_left:
         fig6.add_trace(go.Bar(
             y=ratio_df["시군구명"], x=ratio_df["국보보물개수"],
             name="국보 · 보물", orientation='h',
-            marker=dict(color='#E67E22'), # 시선을 끄는 오렌지/브라운 계열
+            marker=dict(color='#E67E22'), 
             text=ratio_df["비율"].apply(lambda x: f'{x:.1f}%'),
             textposition='outside',
             hovertemplate='국보·보물: %{x}개<extra></extra>'
@@ -193,7 +194,7 @@ with row3_left:
             margin=dict(t=20, l=10, r=60, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             xaxis_title="문화유산 개수 (막대 끝 숫자는 국보·보물 비율)",
-            yaxis=dict(autorange="reversed") # 비율 높은 순서가 위로 오도록
+            yaxis=dict(autorange="reversed") 
         )
         st.plotly_chart(fig6, use_container_width=True)
 
