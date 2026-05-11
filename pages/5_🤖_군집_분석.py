@@ -83,11 +83,10 @@ df_base['silhouette_val'] = silhouette_samples(features, df_base['cluster'])
 # =================================================
 # 상단 요약 지표 (Metrics)
 # =================================================
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3= st.columns(3)
 with c1: st.metric("분석 대상 전수", "105건")
 with c2: st.metric("생성된 군집 수", f"{k_value}개")
-with c3: st.metric("전체 평균 가치", f"{df_base['가치점수'].mean():.2f}")
-with c4: st.metric("분석 신뢰도(실루엣)", f"{sil_avg:.3f}")
+with c3: st.metric("분석 신뢰도(실루엣)", f"{sil_avg:.3f}")
 
 st.divider()
 
