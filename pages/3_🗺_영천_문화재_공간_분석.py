@@ -9,7 +9,7 @@ from folium.plugins import HeatMap, MarkerCluster
 # 페이지 설정
 # =================================================
 st.set_page_config(
-    page_title="영천 문화재 공간분석",
+    page_title="🛰️ 영천 국가유산 공간 정보",
     layout="wide",
     initial_sidebar_state="expanded"
 )
