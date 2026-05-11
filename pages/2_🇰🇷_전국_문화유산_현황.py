@@ -199,6 +199,228 @@ if df is not None:
         st.plotly_chart(fig6, use_container_width=True)
 
     # =================================================
+# 영천 문화유산 종목 비율
+# Radar Chart
+# fig7
+# =================================================
+
+with right3:
+
+    st.markdown("""
+    <h3 style="
+    font-size:24px;
+    margin-bottom:10px;
+    ">
+    🎯 영천 문화유산 종목 특징
+    </h3>
+    """, unsafe_allow_html=True)
+
+    # -------------------------------------------------
+    # 영천 데이터
+    # -------------------------------------------------
+
+    yc_df = gb_df[
+        gb_df["시군구명"] == "영천시"
+    ]
+
+    type_ratio = (
+
+        yc_df["국가유산종목"]
+        .value_counts(normalize=True)
+        .reset_index()
+
+    )
+
+    type_ratio.columns = [
+        "종목",
+        "비율"
+    ]
+
+    type_ratio = (
+        type_ratio
+        .head(8)
+    )
+
+    type_ratio["비율"] = (
+        type_ratio["비율"] * 100
+    )
+
+    # -------------------------------------------------
+    # Radar Chart
+    # -------------------------------------------------
+
+    fig7 = px.line_polar(
+
+        type_ratio,
+
+        r="비율",
+
+        theta="종목",
+
+        line_close=True
+
+    )
+
+    fig7.update_traces(
+
+        fill="toself"
+
+    )
+
+    fig7.update_layout(
+
+        height=500,
+
+        margin=dict(
+            t=20,
+            l=20,
+            r=20,
+            b=20
+        ),
+
+        showlegend=False
+
+    )
+
+    st.plotly_chart(
+        fig7,
+        use_container_width=True
+    )
+
+# =================================================
+# 인구 대비 문화유산 밀도
+# Bubble Chart
+# fig8
+# =================================================
+
+with left4:
+
+    st.markdown("""
+    <h3 style="
+    font-size:24px;
+    margin-bottom:10px;
+    ">
+    👥 인구 대비 문화유산 밀도
+    </h3>
+    """, unsafe_allow_html=True)
+
+    # -------------------------------------------------
+    # 지역별 문화유산 수
+    # -------------------------------------------------
+
+    heritage_count = (
+
+        gb_df["시군구명"]
+        .value_counts()
+        .reset_index()
+
+    )
+
+    heritage_count.columns = [
+        "시군구명",
+        "문화유산수"
+    ]
+
+    # -------------------------------------------------
+    # 경북 시군 인구 데이터
+    # (예시값)
+    # -------------------------------------------------
+
+    pop_df = pd.DataFrame({
+
+        "시군구명": [
+            "경주시","안동시","영천시","포항시",
+            "구미시","문경시","영주시","상주시"
+        ],
+
+        "인구": [
+            250000,
+            155000,
+            101000,
+            500000,
+            410000,
+            70000,
+            100000,
+            93000
+        ]
+
+    })
+
+    # -------------------------------------------------
+    # 병합
+    # -------------------------------------------------
+
+    density_df = pd.merge(
+
+        heritage_count,
+        pop_df,
+
+        on="시군구명",
+
+        how="inner"
+
+    )
+
+    # 인구 1만명당 문화유산 수
+    density_df["밀도"] = (
+
+        density_df["문화유산수"]
+        / density_df["인구"]
+
+    ) * 10000
+
+    # -------------------------------------------------
+    # Bubble Chart
+    # -------------------------------------------------
+
+    fig8 = px.scatter(
+
+        density_df,
+
+        x="인구",
+
+        y="문화유산수",
+
+        size="밀도",
+
+        color="밀도",
+
+        hover_name="시군구명",
+
+        text="시군구명",
+
+        color_continuous_scale="Tealgrn"
+
+    )
+
+    fig8.update_traces(
+
+        textposition="top center"
+
+    )
+
+    fig8.update_layout(
+
+        height=550,
+
+        margin=dict(
+            t=20,
+            l=10,
+            r=10,
+            b=10
+        ),
+
+        coloraxis_showscale=False
+
+    )
+
+    st.plotly_chart(
+        fig8,
+        use_container_width=True
+    )
+    
+
+    # =================================================
     # 하단 설명
     # =================================================
     st.divider()
