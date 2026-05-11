@@ -61,7 +61,7 @@ if df is not None:
     with c4:
         st.metric("가장 많은 지역", df["시도명"].value_counts().idxmax())
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    #st.markdown("<br>", unsafe_allow_html=True)
     st.divider()
     # =================================================
     # 1행: 전국 분포 (Treemap) & 종목별 현황 (Bubble)
