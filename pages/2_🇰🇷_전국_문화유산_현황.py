@@ -355,8 +355,22 @@ with left2:
 
         color_continuous_scale="Tealgrn",
 
-        text="개수"
+        hover_data=["개수"]
 
+    )
+
+    # -------------------------------------------------
+    # 숫자 표시
+    # -------------------------------------------------
+
+    fig3.update_traces(
+    
+        text=city_count["개수"],
+    
+        textfont_size=14,
+    
+        textposition="middle center"
+    
     )
 
     fig3.update_layout(
