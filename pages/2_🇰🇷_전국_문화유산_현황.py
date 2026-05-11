@@ -32,7 +32,6 @@ st.divider()
 @st.cache_data
 def load_data():
     try:
-        # 데이터 파일 경로 (환경에 맞춰 수정하세요)
         df = pd.read_csv("data/raw/all_heritage.csv")
         df.columns = df.columns.str.strip()
         return df
@@ -137,295 +136,91 @@ if df is not None:
         st.plotly_chart(fig4, use_container_width=True)
 
     # =================================================
-    # 3행: 순위 & 비중 (Bar Chart & Overlaid Bar Chart)
+    # 3행: 국보 비중 & 영천시 특징
     # =================================================
     st.markdown("<br>", unsafe_allow_html=True)
     row3_left, row3_right = st.columns(2)
 
-    with row3_right:
-        st.markdown("### 🏆 경북 지역 문화유산 순위")
-        gb_rank = gb_df["시군구명"].value_counts().head(15).reset_index()
-        gb_rank.columns = ["시군구명", "개수"]
-        
-        fig5 = px.bar(gb_rank.sort_values("개수"), x="개수", y="시군구명", orientation="h",
-                     text="개수", color="개수", color_continuous_scale="Tealgrn")
-        fig5.update_traces(textposition="outside")
-        fig5.update_layout(height=550, margin=dict(t=20, l=10, r=10, b=10), coloraxis_showscale=False)
-        st.plotly_chart(fig5, use_container_width=True)
-
     with row3_left:
         st.markdown("### 🏺 지역별 국보 비중 (비율 높은 순)")
-        
-        # 1. 데이터 준비
         total_count = gb_df.groupby("시군구명").size().reset_index(name="전체개수")
-        treasure_count = gb_df[gb_df["국가유산종목"].isin(["국보"])].groupby("시군구명").size().reset_index(name="국보개수")
-        
+        treasure_count = gb_df[gb_df["국가유산종목"] == "국보"].groupby("시군구명").size().reset_index(name="국보개수")
         ratio_df = pd.merge(total_count, treasure_count, on="시군구명", how="left").fillna(0)
         ratio_df["비율"] = (ratio_df["국보개수"] / ratio_df["전체개수"]) * 100
-        
-        # [정렬 기준] '비율'이 높은 순서대로 상위 15개 추출
         ratio_df = ratio_df.sort_values("비율", ascending=False).head(15)
 
-        # 2. 중첩 막대 차트 생성
         fig6 = go.Figure()
-        
-        # 배경: 전체 문화유산 (연한 회색)
         fig6.add_trace(go.Bar(
             y=ratio_df["시군구명"], x=ratio_df["전체개수"],
             name="전체 문화유산", orientation='h',
             marker=dict(color='rgba(200, 200, 200, 0.3)'),
             hovertemplate='전체: %{x}개<extra></extra>'
         ))
-
-        # 전경: 국보 (강조 색상)
         fig6.add_trace(go.Bar(
             y=ratio_df["시군구명"], x=ratio_df["국보개수"],
             name="국보", orientation='h',
             marker=dict(color='#E67E22'), 
             text=ratio_df["비율"].apply(lambda x: f'{x:.1f}%'),
-            textposition='outside',
-            hovertemplate='국보: %{x}개<extra></extra>'
+            textposition='outside'
         ))
-
-        # 3. 레이아웃 설정
-        fig6.update_layout(
-            barmode='overlay',
-            height=550,
-            margin=dict(t=20, l=10, r=60, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis_title="문화유산 개수 (막대 끝 숫자는 국보·보물 비율)",
-            yaxis=dict(autorange="reversed") 
-        )
+        fig6.update_layout(barmode='overlay', height=500, margin=dict(t=20, l=10, r=60, b=10), 
+                          xaxis_title="개수", yaxis=dict(autorange="reversed"), legend=dict(orientation="h", y=1.1))
         st.plotly_chart(fig6, use_container_width=True)
 
+    with row3_right:
+        st.markdown("### 🎯 영천 문화유산 종목 특징")
+        yc_df = gb_df[gb_df["시군구명"] == "영천시"]
+        type_ratio = yc_df["국가유산종목"].value_counts(normalize=True).reset_index()
+        type_ratio.columns = ["종목", "비율"]
+        type_ratio["비율"] = type_ratio["비율"] * 100
+
+        fig7 = px.line_polar(type_ratio.head(8), r="비율", theta="종목", line_close=True)
+        fig7.update_traces(fill="toself", line_color="#008080")
+        fig7.update_layout(height=500, margin=dict(t=30, b=30))
+        st.plotly_chart(fig7, use_container_width=True)
+
     # =================================================
-# 영천 문화유산 종목 비율
-# Radar Chart
-# fig7
-# =================================================
-
-with right3:
-
-    st.markdown("""
-    <h3 style="
-    font-size:24px;
-    margin-bottom:10px;
-    ">
-    🎯 영천 문화유산 종목 특징
-    </h3>
-    """, unsafe_allow_html=True)
-
-    # -------------------------------------------------
-    # 영천 데이터
-    # -------------------------------------------------
-
-    yc_df = gb_df[
-        gb_df["시군구명"] == "영천시"
-    ]
-
-    type_ratio = (
-
-        yc_df["국가유산종목"]
-        .value_counts(normalize=True)
-        .reset_index()
-
-    )
-
-    type_ratio.columns = [
-        "종목",
-        "비율"
-    ]
-
-    type_ratio = (
-        type_ratio
-        .head(8)
-    )
-
-    type_ratio["비율"] = (
-        type_ratio["비율"] * 100
-    )
-
-    # -------------------------------------------------
-    # Radar Chart
-    # -------------------------------------------------
-
-    fig7 = px.line_polar(
-
-        type_ratio,
-
-        r="비율",
-
-        theta="종목",
-
-        line_close=True
-
-    )
-
-    fig7.update_traces(
-
-        fill="toself"
-
-    )
-
-    fig7.update_layout(
-
-        height=500,
-
-        margin=dict(
-            t=20,
-            l=20,
-            r=20,
-            b=20
-        ),
-
-        showlegend=False
-
-    )
-
-    st.plotly_chart(
-        fig7,
-        use_container_width=True
-    )
-
-# =================================================
-# 인구 대비 문화유산 밀도
-# Bubble Chart
-# fig8
-# =================================================
-
-with left4:
-
-    st.markdown("""
-    <h3 style="
-    font-size:24px;
-    margin-bottom:10px;
-    ">
-    👥 인구 대비 문화유산 밀도
-    </h3>
-    """, unsafe_allow_html=True)
-
-    # -------------------------------------------------
-    # 지역별 문화유산 수
-    # -------------------------------------------------
-
-    heritage_count = (
-
-        gb_df["시군구명"]
-        .value_counts()
-        .reset_index()
-
-    )
-
-    heritage_count.columns = [
-        "시군구명",
-        "문화유산수"
-    ]
-
-    # -------------------------------------------------
-    # 경북 시군 인구 데이터
-    # (예시값)
-    # -------------------------------------------------
-
-    pop_df = pd.DataFrame({
-
-        "시군구명": [
-            "경주시","안동시","영천시","포항시",
-            "구미시","문경시","영주시","상주시"
-        ],
-
-        "인구": [
-            250000,
-            155000,
-            101000,
-            500000,
-            410000,
-            70000,
-            100000,
-            93000
-        ]
-
-    })
-
-    # -------------------------------------------------
-    # 병합
-    # -------------------------------------------------
-
-    density_df = pd.merge(
-
-        heritage_count,
-        pop_df,
-
-        on="시군구명",
-
-        how="inner"
-
-    )
-
-    # 인구 1만명당 문화유산 수
-    density_df["밀도"] = (
-
-        density_df["문화유산수"]
-        / density_df["인구"]
-
-    ) * 10000
-
-    # -------------------------------------------------
-    # Bubble Chart
-    # -------------------------------------------------
-
-    fig8 = px.scatter(
-
-        density_df,
-
-        x="인구",
-
-        y="문화유산수",
-
-        size="밀도",
-
-        color="밀도",
-
-        hover_name="시군구명",
-
-        text="시군구명",
-
-        color_continuous_scale="Tealgrn"
-
-    )
-
-    fig8.update_traces(
-
-        textposition="top center"
-
-    )
-
-    fig8.update_layout(
-
-        height=550,
-
-        margin=dict(
-            t=20,
-            l=10,
-            r=10,
-            b=10
-        ),
-
-        coloraxis_showscale=False
-
-    )
-
-    st.plotly_chart(
-        fig8,
-        use_container_width=True
-    )
-    
+    # 4행: 경북 순위 & 인구 대비 밀도
+    # =================================================
+    st.markdown("<br>", unsafe_allow_html=True)
+    row4_left, row4_right = st.columns(2)
+
+    with row4_left:
+        st.markdown("### 👥 인구 대비 문화유산 밀도")
+        heritage_count = gb_df["시군구명"].value_counts().reset_index()
+        heritage_count.columns = ["시군구명", "문화유산수"]
+
+        pop_df = pd.DataFrame({
+            "시군구명": ["경주시","안동시","영천시","포항시","구미시","문경시","영주시","상주시"],
+            "인구": [250000, 155000, 101000, 500000, 410000, 70000, 100000, 93000]
+        })
+
+        density_df = pd.merge(heritage_count, pop_df, on="시군구명", how="inner")
+        density_df["밀도"] = (density_df["문화유산수"] / density_df["인구"]) * 10000
+
+        fig8 = px.scatter(
+            density_df, x="인구", y="문화유산수", size="밀도", color="밀도",
+            hover_name="시군구명", text="시군구명", color_continuous_scale="Tealgrn"
+        )
+        fig8.update_traces(textposition="top center")
+        fig8.update_layout(height=500, margin=dict(t=20, l=10, r=10, b=10), coloraxis_showscale=False)
+        st.plotly_chart(fig8, use_container_width=True)
+
+    with row4_right:
+        st.markdown("### 🏆 경북 지역 문화유산 순위")
+        gb_rank = gb_df["시군구명"].value_counts().head(15).reset_index()
+        gb_rank.columns = ["시군구명", "개수"]
+        fig5 = px.bar(gb_rank.sort_values("개수"), x="개수", y="시군구명", orientation="h",
+                     text="개수", color="개수", color_continuous_scale="Tealgrn")
+        fig5.update_traces(textposition="outside")
+        fig5.update_layout(height=500, margin=dict(t=20, l=10, r=10, b=10), coloraxis_showscale=False)
+        st.plotly_chart(fig5, use_container_width=True)
 
     # =================================================
     # 하단 설명
     # =================================================
     st.divider()
     st.info("""
-    📌 **시도별 문화유산 분포**: 전체적인 규모를 한눈에 파악할 수 있는 트리맵입니다.  
-    📌 **경북 지역별 종목 현황**: 히트맵을 통해 특정 지역에 어떤 종목이 집중되어 있는지 분석할 수 있습니다.  
-    📌 **지역별 국보 · 보물 비중**: 전체 문화유산 수 대비 '국보·보물'이 차지하는 양과 비율을 동시에 시각화하여 문화적 가치 밀도를 보여줍니다.
+    📌 **레이더 차트**: 영천시의 종목별 비중을 통해 해당 지역이 어떤 유형의 유산에 강점이 있는지 보여줍니다.  
+    📌 **밀도 버블 차트**: 단순 수량이 아닌, 인구 대비 문화유산 밀도를 통해 지역의 문화적 밀집도를 분석합니다.
     """)
