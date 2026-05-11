@@ -585,11 +585,11 @@ with right3:
         use_container_width=True
     )
 # =================================================
-# 경북 지역별 국보 / 보물 비율
+# 경북 지역별 국보 · 보물 비율
 # fig6
 # =================================================
 
-
+left3, right3 = st.columns(2)
 
 with left3:
 
@@ -598,80 +598,115 @@ with left3:
     font-size:24px;
     margin-bottom:10px;
     ">
-    🏺 경북 지역별 국보 · 보물 비율
+    🏺 지역별 국보 · 보물 비율
     </h3>
     """, unsafe_allow_html=True)
 
     # -------------------------------------------------
-    # 전체 문화유산 개수
+    # 지역별 전체 문화유산 수
     # -------------------------------------------------
 
-    total_count = len(gb_df)
+    total_df = (
 
-    # -------------------------------------------------
-    # 국보 / 보물 개수
-    # -------------------------------------------------
-
-    treasure_count = len(
-
-        gb_df[
-            gb_df["국가유산종목"].isin(
-                ["국보", "보물"]
-            )
-        ]
+        gb_df
+        .groupby("시군구명")
+        .size()
+        .reset_index(name="전체개수")
 
     )
 
-    other_count = total_count - treasure_count
-
-    ratio_df = pd.DataFrame({
-
-        "구분": [
-            "국보·보물",
-            "기타 문화유산"
-        ],
-
-        "개수": [
-            treasure_count,
-            other_count
-        ]
-
-    })
-
     # -------------------------------------------------
-    # Donut Chart
+    # 지역별 국보·보물 수
     # -------------------------------------------------
 
-    fig6 = px.pie(
+    treasure_df = gb_df[
 
-        ratio_df,
+        gb_df["국가유산종목"].isin(
+            ["국보", "보물"]
+        )
 
-        names="구분",
+    ]
 
-        values="개수",
+    treasure_count = (
 
-        hole=0.5,
+        treasure_df
+        .groupby("시군구명")
+        .size()
+        .reset_index(name="국보보물개수")
 
-        color="구분",
+    )
 
-        color_discrete_map={
+    # -------------------------------------------------
+    # 병합
+    # -------------------------------------------------
 
-            "국보·보물": "#0f766e",
-            "기타 문화유산": "#cbd5e1"
+    ratio_df = pd.merge(
 
-        }
+        total_df,
+        treasure_count,
+
+        on="시군구명",
+
+        how="left"
+
+    )
+
+    ratio_df["국보보물개수"] = (
+        ratio_df["국보보물개수"]
+        .fillna(0)
+    )
+
+    # -------------------------------------------------
+    # 비율 계산
+    # -------------------------------------------------
+
+    ratio_df["비율"] = (
+
+        ratio_df["국보보물개수"]
+        / ratio_df["전체개수"]
+
+    ) * 100
+
+    ratio_df = (
+        ratio_df
+        .sort_values(
+            by="비율",
+            ascending=False
+        )
+        .head(15)
+    )
+
+    # -------------------------------------------------
+    # Bar Chart
+    # -------------------------------------------------
+
+    fig6 = px.bar(
+
+        ratio_df.sort_values("비율"),
+
+        x="비율",
+
+        y="시군구명",
+
+        orientation="h",
+
+        text=ratio_df.sort_values("비율")["비율"].round(1).astype(str) + "%",
+
+        color="비율",
+
+        color_continuous_scale="Tealgrn"
 
     )
 
     fig6.update_traces(
 
-        textinfo="percent+label+value"
+        textposition="outside"
 
     )
 
     fig6.update_layout(
 
-        height=500,
+        height=550,
 
         margin=dict(
             t=20,
@@ -680,7 +715,11 @@ with left3:
             b=10
         ),
 
-        showlegend=False
+        xaxis_title="국보 · 보물 비율 (%)",
+
+        yaxis_title="",
+
+        coloraxis_showscale=False
 
     )
 
