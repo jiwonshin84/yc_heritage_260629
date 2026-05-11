@@ -475,6 +475,106 @@ with right2:
         use_container_width=True
     )
 
+# =================================================
+# 경북 지역 문화유산 순위
+# fig5
+# =================================================
+
+with right2:
+
+    st.markdown("""
+    <h3 style="
+    font-size:24px;
+    margin-bottom:10px;
+    ">
+    🏆 경북 지역 문화유산 순위
+    </h3>
+    """, unsafe_allow_html=True)
+
+    # -------------------------------------------------
+    # 경북 지역 시군구별 문화유산 개수
+    # -------------------------------------------------
+
+    gb_rank = (
+
+        gb_df["시군구명"]
+        .value_counts()
+        .reset_index()
+
+    )
+
+    gb_rank.columns = [
+        "시군구명",
+        "개수"
+    ]
+
+    gb_rank = (
+        gb_rank
+        .sort_values(
+            by="개수",
+            ascending=False
+        )
+        .head(15)
+    )
+
+    # 순위 컬럼 추가
+    gb_rank["순위"] = range(
+        1,
+        len(gb_rank) + 1
+    )
+
+    # -------------------------------------------------
+    # Horizontal Bar Chart
+    # -------------------------------------------------
+
+    fig5 = px.bar(
+
+        gb_rank.sort_values("개수"),
+
+        x="개수",
+
+        y="시군구명",
+
+        orientation="h",
+
+        text="개수",
+
+        color="개수",
+
+        color_continuous_scale="Tealgrn"
+
+    )
+
+    fig5.update_traces(
+
+        textposition="outside"
+
+    )
+
+    fig5.update_layout(
+
+        height=550,
+
+        margin=dict(
+            t=20,
+            l=10,
+            r=10,
+            b=10
+        ),
+
+        yaxis_title="",
+
+        xaxis_title="문화유산 개수",
+
+        coloraxis_showscale=False
+
+    )
+
+    st.plotly_chart(
+        fig5,
+        use_container_width=True
+    )
+
 
 # =================================================
 # 하단 설명
