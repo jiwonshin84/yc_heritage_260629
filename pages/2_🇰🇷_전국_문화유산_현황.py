@@ -81,7 +81,7 @@ if df is not None:
 
         fig1 = px.treemap(
             region_count, path=["시도명"], values="개수",
-            color="개수", color_continuous_scale="Viridis"
+            color="개수", color_continuous_scale="Purp"
         )
         fig1.update_layout(margin=dict(t=20, l=10, r=10, b=10), height=500)
         fig1.update_traces(texttemplate="<b>%{label}</b><br>%{value}개", textfont_size=16)
