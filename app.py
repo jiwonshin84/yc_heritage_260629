@@ -1,485 +1,131 @@
 # ==========================================================
-# 라이브러리
+# 1. 라이브러리 로드
 # ==========================================================
 import streamlit as st
 import pandas as pd
+import numpy as np
 import requests
+import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-
-
-# ============================================
-# API KEY
-# ============================================
-
-SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
-
-# ============================================
-# 1. 기상청 ASOS 전날 최신 기상자료
-# ============================================
-
-ASOS_URL = (
-    "https://apis.data.go.kr/"
-    "1360000/AsosHourlyInfoService/getWthrDataList"
-)
-
-# 영천 관측소
-STN_ID = "281"
-
-# 한국시간
-now = datetime.now(ZoneInfo("Asia/Seoul"))
-
-# 전날
-yesterday = now - timedelta(days=1)
-
-base_date = yesterday.strftime("%Y%m%d")
-base_hour = "23"
-
-print("현재 한국시간:", now)
-print("조회 날짜:", base_date)
-print("조회 시간:", base_hour)
-
-# ============================================
-# ASOS 요청 파라미터
-# ============================================
-
-asos_params = {
-    "serviceKey": SERVICE_KEY,
-    "pageNo": "1",
-    "numOfRows": "1",
-    "dataType": "JSON",
-
-    "dataCd": "ASOS",
-    "dateCd": "HR",
-
-    # 전날 23시 데이터
-    "startDt": base_date,
-    "startHh": base_hour,
-
-    "endDt": base_date,
-    "endHh": base_hour,
-
-    # 영천 관측소
-    "stnIds": STN_ID
-}
-
-# ============================================
-# 기본값
-# ============================================
-
-tm = "-"
-
-temp = "-"
-humidity = "-"
-
-rainfall = "-"
-wind_speed = "-"
-
-# ============================================
-# ASOS API 요청
-# ============================================
-
-try:
-
-    response = requests.get(
-        ASOS_URL,
-        params=asos_params,
-        timeout=30
-    )
-
-    print("ASOS 응답코드:", response.status_code)
-
-    data = response.json()
-
-    print(data)
-
-    item = data["response"]["body"]["items"]["item"][0]
-
-    # 관측 시각
-    tm = item["tm"]
-
-    # 기온
-    temp = item["ta"]
-
-    # 습도
-    humidity = item["hm"]
-
-    # 강수량
-    rainfall = item["rn"]
-
-    # 풍속
-    wind_speed = item["ws"]
-
-    print()
-    print("===== 전날 최신 기상 데이터 =====")
-    print("관측시각:", tm)
-
-    print("기온:", temp, "°C")
-    print("습도:", humidity, "%")
-
-    print("강수량:", rainfall, "mm")
-    print("풍속:", wind_speed, "m/s")
-
-except Exception as e:
-
-    print("기상 데이터 조회 실패")
-    print(e)
-
-# ============================================
-# 2. 대기오염 최신 데이터
-# ============================================
-
-AIR_URL = (
-    "https://apis.data.go.kr/"
-    "B552584/ArpltnInforInqireSvc/"
-    "getCtprvnRltmMesureDnsty"
-)
-
-# 기본값
-pm10 = "-"
-pm25 = "-"
-
-o3 = "-"
-no2 = "-"
-
-co = "-"
-so2 = "-"
-
-data_time = "-"
-
-# ============================================
-# 대기오염 API 요청
-# ============================================
-
-try:
-
-    air_params = {
-        "serviceKey": SERVICE_KEY,
-        "returnType": "json",
-
-        "numOfRows": "100",
-        "pageNo": "1",
-
-        # 경북
-        "sidoName": "경북",
-
-        "ver": "1.0"
-    }
-
-    air_response = requests.get(
-        AIR_URL,
-        params=air_params,
-        timeout=30
-    )
-
-    print("대기오염 응답코드:", air_response.status_code)
-
-    air_data = air_response.json()
-
-    print(air_data)
-
-    items = air_data["response"]["body"]["items"]
-
-    # 영천 측정소 찾기
-    target = None
-
-    for item in items:
-
-        if "영천" in item["stationName"]:
-            target = item
-            break
-
-    if target:
-
-        data_time = target["dataTime"]
-
-        pm10 = target["pm10Value"]
-        pm25 = target["pm25Value"]
-
-        o3 = target["o3Value"]
-        no2 = target["no2Value"]
-
-        co = target["coValue"]
-        so2 = target["so2Value"]
-
-        print()
-        print("===== 최신 대기오염 데이터 =====")
-
-        print("측정시각:", data_time)
-
-        print("PM10:", pm10)
-        print("PM2.5:", pm25)
-
-        print("O3:", o3)
-        print("NO2:", no2)
-
-        print("CO:", co)
-        print("SO2:", so2)
-
-except Exception as e:
-
-    print("대기오염 데이터 조회 실패")
-    print(e)
-
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, silhouette_samples
+from sklearn.preprocessing import StandardScaler
 
 # ==========================================================
-# 페이지 설정
+# 2. 페이지 설정 및 API 키
 # ==========================================================
 st.set_page_config(
-    page_title="공공 환경 데이터 기반 영천 지역 문화재 훼손 위험 예측",
+    page_title="영천시 국가유산 위험예측 시스템",
     page_icon="🏛",
     layout="wide"
 )
 
-# ==========================================================
-# 데이터 불러오기
-# ==========================================================
-df = pd.read_csv(
-    "data/processed/yc_heritage_detail_enriched.csv"
-)
+SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
 
 # ==========================================================
-# 제목
+# 3. 실시간 환경 데이터 수집 (기상청 & 에어코리아)
 # ==========================================================
-st.markdown("""
-<h1 style='font-size:30px;'>
-🏛 공공 환경 데이터 기반 영천 지역 문화재 훼손 위험 예측
-</h1>
-""", unsafe_allow_html=True)
-st.markdown("""
-영천 지역 문화재와 공공 환경데이터를 분석하여 문화재 훼손 위험을 사전에 예측하는 데이터 분석 프로젝트 입니다.
-""")
 
+@st.cache_data(ttl=3600) # 1시간마다 데이터 갱신
+def get_env_data():
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+    
+    # [기상 데이터 - ASOS] 현재 시각 기준 최신 데이터 (보통 1시간 전 데이터가 확정치)
+    search_time = now - timedelta(hours=1)
+    base_date = search_time.strftime("%Y%m%d")
+    base_hour = search_time.strftime("%H")
+    
+    asos_url = "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList"
+    asos_params = {
+        "serviceKey": SERVICE_KEY, "pageNo": "1", "numOfRows": "1", "dataType": "JSON",
+        "dataCd": "ASOS", "dateCd": "HR", "stnIds": "281", # 영천 관측소
+        "startDt": base_date, "startHh": base_hour, "endDt": base_date, "endHh": base_hour
+    }
+    
+    # [대기오염 데이터 - Arpltn]
+    air_url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
+    air_params = {
+        "serviceKey": SERVICE_KEY, "returnType": "json", "numOfRows": "100", 
+        "pageNo": "1", "sidoName": "경북", "ver": "1.0"
+    }
+    
+    env_res = {"weather": {}, "air": {}}
+    
+    try:
+        # 기상 조회
+        res_w = requests.get(asos_url, params=asos_params, timeout=10).json()
+        item_w = res_w["response"]["body"]["items"]["item"][0]
+        env_res["weather"] = {
+            "tm": item_w["tm"], "temp": item_w["ta"], "hum": item_w["hm"],
+            "rn": item_w["rn"] if item_w["rn"] else "0", "ws": item_w["ws"]
+        }
+        
+        # 대기 조회
+        res_a = requests.get(air_url, params=air_params, timeout=10).json()
+        items_a = res_a["response"]["body"]["items"]
+        for item in items_a:
+            if "영천" in item["stationName"]:
+                env_res["air"] = item
+                break
+    except:
+        st.warning("일부 실시간 데이터를 불러올 수 없습니다. 기본값을 표시합니다.")
+        
+    return env_res
+
+env_data = get_env_data()
+
+# ==========================================================
+# 4. 데이터 로드 및 지능형 군집 분석 (위험관리 지구 도출)
+# ==========================================================
+
+@st.cache_data
+def load_heritage_data():
+    df = pd.read_csv("data/processed/yc_clustering.csv")
+    df = df.dropna(subset=['위도', '경도', '가치점수', '시대점수'])
+    df['소재지상세'] = df['소재지상세'].fillna("-").astype(str).str.replace('\t', ' ', regex=True).str.strip()
+    return df
+
+df_base = load_heritage_data()
+
+# 군집 분석 (표준화 적용 - 지리적 가중치 강화)
+scaler = StandardScaler()
+features_scaled = scaler.fit_transform(df_base[['위도', '경도', '가치점수', '시대점수']])
+
+# 사이드바에서 K값 조절
+k_val = st.sidebar.slider("🛠 위험 관리 지구 수(k) 설정", 2, 10, 5)
+kmeans = KMeans(n_clusters=k_val, random_state=42, n_init=10)
+df_base['cluster'] = (kmeans.fit_predict(features_scaled) + 1).astype(str)
+
+# ==========================================================
+# 5. UI 렌더링 - 상단 대시보드
+# ==========================================================
+st.markdown("<h2 style='font-size:28px;'>🏛 실시간 환경 데이터 기반 영천 유산 위험예측</h2>", unsafe_allow_html=True)
 st.divider()
 
+# 대시보드 카드 스타일
+card_style = "background-color:#f8f9fa; padding:20px; border-radius:15px; border:1px solid #e5e7eb; height:280px;"
 
-# ============================================
-# 상단 환경 대시보드
-# ============================================
+col_w, col_a, col_h = st.columns([1, 1.2, 0.8])
 
-st.markdown("""
-<h3 style="
-    font-size:25px;
-    margin-bottom:10px;
-">
-🌿 영천시 환경 데이터 및 문화재 현황
-</h3>
-""", unsafe_allow_html=True)
+with col_w:
+    w = env_data["weather"]
+    st.markdown(f"""<div style="{card_style}"><h4>🌦 최신 기상</h4><hr>
+    <b>🌡 기온:</b> {w.get('temp', '-')} °C<br><b>💧 습도:</b> {w.get('hum', '-')} %<br>
+    <b>🌧 강수:</b> {w.get('rn', '-')} mm<br><b>💨 풍속:</b> {w.get('ws', '-')} m/s<br>
+    <p style='font-size:12px; color:gray; margin-top:15px;'>⏱ {w.get('tm', '-')}</p></div>""", unsafe_allow_html=True)
 
-# 메인 영역
-left, center, right = st.columns([1.4, 2.0, 1.0])
+with col_a:
+    a = env_data["air"]
+    st.markdown(f"""<div style="{card_style}"><h4>🌫 대기 환경</h4><hr>
+    <div style='display:flex; justify-content:space-between;'>
+    <span><b>PM10:</b> {a.get('pm10Value', '-')}</span><span><b>PM2.5:</b> {a.get('pm25Value', '-')}</span>
+    </div><div style='display:flex; justify-content:space-between;'>
+    <span><b>O₃:</b> {a.get('o3Value', '-')}</span><span><b>NO₂:</b> {a.get('no2Value', '-')}</span>
+    </div><p style='font-size:12px; color:gray; margin-top:55px;'>⏱ {a.get('dataTime', '-')}</p></div>""", unsafe_allow_html=True)
 
-# ============================================
-# 공통 스타일
-# ============================================
-
-card_style = """
-background-color:#f8f9fa;
-padding:22px;
-border-radius:20px;
-border:1px solid #e5e7eb;
-box-shadow:0 4px 12px rgba(0,0,0,0.05);
-height:350px;
-"""
-
-title_style = """
-font-size:24px;
-font-weight:700;
-margin-bottom:14px;
-color:#1f2937;
-"""
-
-label_style = """
-font-size:14px;
-color:#6b7280;
-margin-bottom:4px;
-"""
-
-value_style = """
-font-size:22px;
-font-weight:700;
-color:#111827;
-margin-bottom:18px;
-"""
-
-time_style = """
-font-size:13px;
-color:#9ca3af;
-margin-top:12px;
-position:absolute;
-bottom:20px;
-"""
-
-# ============================================
-# 1열 : 기상 환경
-# ============================================
-
-with left:
-
-    st.markdown(
-        f"""
-<div style="{card_style}; position:relative;">
-
-<div style="{title_style}">
-🌦 기상 환경
-</div>
-
-<hr>
-
-<div style="
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:16px;
-margin-top:20px;
-">
-
-<div>
-<div style="{label_style}">🌡 기온</div>
-<div style="{value_style}">{temp} °C</div>
-</div>
-
-<div>
-<div style="{label_style}">💧 습도</div>
-<div style="{value_style}">{humidity} %</div>
-</div>
-
-<div>
-<div style="{label_style}">🌧 강수량</div>
-<div style="{value_style}">{rainfall} mm</div>
-</div>
-
-<div>
-<div style="{label_style}">💨 풍속</div>
-<div style="{value_style}">{wind_speed} m/s</div>
-</div>
-
-</div>
-
-<div style="{time_style}">
-⏱ 측정 시각 : {tm}
-</div>
-
-</div>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ============================================
-# 2열 : 대기오염 현황
-# ============================================
-
-with center:
-
-    st.markdown(
-        f"""
-<div style="{card_style}; position:relative;">
-
-<div style="{title_style}">
-🌫 대기오염 현황
-</div>
-
-<hr>
-
-<div style="
-display:grid;
-grid-template-columns:1fr 1fr 1fr;
-gap:20px;
-margin-top:20px;
-">
-
-<div>
-
-<div style="{label_style}">PM10</div>
-<div style="{value_style}">{pm10}</div>
-
-<div style="{label_style}">O₃</div>
-<div style="{value_style}">{o3}</div>
-
-</div>
-
-<div>
-
-<div style="{label_style}">PM2.5</div>
-<div style="{value_style}">{pm25}</div>
-
-<div style="{label_style}">NO₂</div>
-<div style="{value_style}">{no2}</div>
-
-</div>
-
-<div>
-
-<div style="{label_style}">CO</div>
-<div style="{value_style}">{co}</div>
-
-<div style="{label_style}">SO₂</div>
-<div style="{value_style}">{so2}</div>
-
-</div>
-
-</div>
-
-<div style="{time_style}">
-⏱ 측정 시각 : {data_time}
-</div>
-
-</div>
-        """,
-        unsafe_allow_html=True
-    )
-
-# ============================================
-# 3열 : 문화재 현황
-# ============================================
-
-with right:
-
-    st.markdown(
-        f"""
-<div style="{card_style}; position:relative;">
-
-<div style="{title_style}">
-🏛 문화재 현황
-</div>
-
-<hr>
-
-<div style="margin-top:20px;">
-
-<div style="{label_style}">
-분석 문화재 수
-</div>
-
-<div style="{value_style}">
-{len(df)}개
-</div>
-
-<br>
-
-<div style="{label_style}">
-⚠ 고위험 문화재
-</div>
-
-<div style="{value_style}">
-18개
-</div>
-
-</div>
-
-<div>
-- 
-</div>
-                    
-</div>
-        """,
-        unsafe_allow_html=True
-    )
-
-st.divider()
-
-# ==========================================================
-# 하단 안내
-# ==========================================================
-st.caption(
-    "제6회 학생 SW·AI 인재양성 프로젝트 | 선화여고 - 영천 헤리티지 AI 탐구단"
-)
+with col_h:
+    st.markdown(f"""<div style="{card_style}"><h4>📊 분석 현황</h4><hr>
+    <b>분석 대상:</b> {len(df_base)}개<br><b>관리 지구:</b> {k_val}개 구역<br>
+    <br><span style='color:red;'>⚠️ 고위험 예측: 18개</span></div>""", unsafe_allow_html
