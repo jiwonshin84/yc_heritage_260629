@@ -14,7 +14,7 @@ st.set_page_config(
 # [중요] Secrets에서 키를 가져와 Gemini 설정
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 else:
     st.error("API 키가 설정되지 않았습니다. Streamlit Cloud의 Settings -> Secrets에 GEMINI_API_KEY를 입력해주세요.")
     st.stop()
