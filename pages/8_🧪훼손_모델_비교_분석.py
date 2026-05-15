@@ -49,8 +49,8 @@ KOR_NAMES = {
 @st.cache_data
 def load_and_preprocess_data():
     # 파일 경로 설정
-    air_path = "yc_heritage_project/data/processed/[2019_2025] air_quality.csv"
-    weather_path = "yc_heritage_project/data/processed/[2016_2025] yeongcheon_weather_daily.csv"
+    air_path = "data/processed/[2019_2025] air_quality.csv"
+    weather_path = "data/processed/[2016_2025] yeongcheon_weather_daily.csv"
     
     # 데이터 읽기
     air = pd.read_csv(air_path)
