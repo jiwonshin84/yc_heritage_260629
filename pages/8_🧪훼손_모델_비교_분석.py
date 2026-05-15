@@ -55,7 +55,7 @@ def label_risk_4step(row):
 # ==========================================================
 @st.cache_resource
 def train_and_compare_models():
-    path = "yc_heritage_project/data/processed/"
+    path = "/data/processed/"
     # 데이터 로드
     w = pd.read_csv(path + "[2016_2025] yeongcheon_weather_daily.csv").rename(columns={
         'avg_temperature_c': 'temp', 'daily_precipitation_mm': 'rainfall', 'avg_relative_humidity_pct': 'humidity'
