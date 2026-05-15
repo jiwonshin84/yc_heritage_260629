@@ -156,7 +156,7 @@ with st.sidebar:
     s_hum = st.slider("습도(%)", 0, 100, 78)
     s_pm = st.slider("미세먼지", 0, 200, 45)
 
-h_df = pd.read_csv("yc_heritage_project/data/processed/yc_heritage_feature.csv")
+h_df = pd.read_csv("/data/processed/yc_heritage_feature.csv")
 final_results = []
 
 # 가장 성능이 좋은 모델 선택
