@@ -457,11 +457,11 @@ with right:
 <br>
 
 <div style="{label_style}">
-⚠ 고위험 문화재
+
 </div>
 
 <div style="{value_style}">
-18개
+
 </div>
 
 </div>
