@@ -214,7 +214,7 @@ try:
         "stnIds": "281"
     }
     res  = requests.get(
-        "https://apis.data.go.kr/1360000/AsosHourlyInfoService/getWthrDataList",
+        "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList",
         params=asos_params, timeout=10
     ).json()
     item = res["response"]["body"]["items"]["item"][0]
