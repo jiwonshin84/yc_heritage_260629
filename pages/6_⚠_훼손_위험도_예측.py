@@ -231,28 +231,44 @@ except:
 
 pm10, pm25, o3, no2, co, so2, data_time = "-", "-", "-", "-", "-", "-", "-"
 try:
+    air_url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty"
     air_params = {
-        "serviceKey": SERVICE_KEY, "returnType": "json",
-        "numOfRows": "100", "sidoName": "경북", "ver": "1.0"
+        "serviceKey": SERVICE_KEY, 
+        "returnType": "json",
+        "numOfRows": "48",       # 어제 00~23시가 모두 포함되도록 48시간 분량 호출
+        "stationName": "창구동", 
+        "dataTerm": "DAILY", 
+        "ver": "1.0"
     }
-    res    = requests.get(
-        "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty",
-        params=air_params, timeout=10
-    ).json()
-    target = next(
-        (i for i in res["response"]["body"]["items"] if "영천" in i["stationName"]),
-        None
-    )
-    if target:
-        # 일간 모델의 정합성을 위해 1시간 순간측정치 대신 '24시간 이동평균수치' 반영
-        pm10 = target.get("pm10Value24h", target["pm10Value"])
-        pm25 = target.get("pm25Value24h", target["pm25Value"])
-        o3, no2, co, so2, data_time = (
-            target["o3Value"],  target["no2Value"],  target["coValue"],  
-            target["so2Value"], target["dataTime"]
-        )
-except:
-    pass
+    res = requests.get(air_url, params=air_params, timeout=10).json()
+    items = res["response"]["body"]["items"]
+    
+    if items:
+        # 1. API 결과 데이터를 DataFrame으로 변환
+        air_df = pd.DataFrame(items)
+        
+        # 2. dataTime 컬럼을 기반으로 '어제 날짜(YYYY-MM-DD)' 텍스트가 포함된 행만 필터링
+        # 예: base_date가 "20260526"이면 "2026-05-26" 형식으로 변환하여 검색
+        target_date_str = f"{base_date[:4]}-{base_date[4:6]}-{base_date[6:]}"
+        yesterday_air_df = air_df[air_df['dataTime'].str.contains(target_date_str)].copy()
+        
+        if not yesterday_air_df.empty:
+            # 3. 측정값 수치형 변환 및 결측치("-") 처리
+            value_cols = ["pm10Value", "pm25Value", "o3Value", "no2Value", "coValue", "so2Value"]
+            for col in value_cols:
+                yesterday_air_df[col] = pd.to_numeric(yesterday_air_df[col], errors='coerce')
+            
+            # 4. 어제 00시~23시 데이터(최대 24개 행)의 평균값 계산
+            pm10      = f"{yesterday_air_df['pm10Value'].mean():.2f}"
+            pm25      = f"{yesterday_air_df['pm25Value'].mean():.2f}"
+            o3        = f"{yesterday_air_df['o3Value'].mean():.4f}"
+            no2       = f"{yesterday_air_df['no2Value'].mean():.4f}"
+            co        = f"{yesterday_air_df['coValue'].mean():.2f}"
+            so2       = f"{yesterday_air_df['so2Value'].mean():.4f}"
+            data_time = f"{target_date_str} 종합평균"
+            
+except Exception as e:
+    st.sidebar.error(f"대기 API 오류: {e}")
 
 # ==========================================================
 # 4. 현재 환경값 → 파생변수 계산 (일단위 데이터 기반)
