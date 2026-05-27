@@ -231,36 +231,42 @@ except:
 
 pm10, pm25, o3, no2, co, so2, data_time = "-", "-", "-", "-", "-", "-", "-"
 try:
-    # 시도별 일평균 정보 조회 전용 엔드포인트 URL로 변경
-    air_url = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnByMmAvgInqire"
-    air_params = {
-        "serviceKey": SERVICE_KEY, 
-        "returnType": "json",
-        "numOfRows": "100",
-        "pageNo": "1",
-        "sidoName": "경북",
-        "searchCondition": "DAILY",  # 일간 자료 매칭 옵션 필수
-        "ver": "1.0"
-    }
-    res = requests.get(air_url, params=air_params, timeout=10).json()
-    items = res["response"]["body"]["items"]
+    # 1. 새 요청 주소(URL) 설정
+    air_url = "http://apis.data.go.kr/B552584/ArpltnStatsSvc/getMsrstnAcctoRDyrg"
     
-    # 영천 측정소에 해당하며, 시간 도장이 정확히 어제 날짜('YYYY-MM-DD')인 행 찾기
-    target = None
-    for item in items:
-        if "영천" in item["stationName"] and target_date_str in item["dataTime"]:
-            target = item
-            break
+    # 2. 제공해주신 명세서 필수/옵션 항목 변수 매칭
+    # base_date는 상단에 정의된 어제 날짜인 "YYYYMMDD" 형식을 그대로 사용합니다.
+    air_params = {
+        "serviceKey": SERVICE_KEY,
+        "returnType": "json",
+        "numOfRows": "10",
+        "pageNo": "1",
+        "inqBginDt": base_date,      # 조회시작일자 (예: 20260526)
+        "inqEndDt": base_date,        # 조회종료일자 (예: 20260526)
+        "msrstnName": "창구동",       # 영천시 관측 측정소명
+    }
+
+    air_response = requests.get(air_url, params=air_params, timeout=15)
+    
+    if air_response.status_code == 200 and air_response.text.strip().startswith("{"):
+        air_data = air_response.json()
+        items = air_data["response"]["body"]["items"]
+        
+        # 조회 기간을 하루만 지정했으므로 결과가 있다면 리스트의 첫 번째[0]가 어제 데이터입니다.
+        if items:
+            target = items[0]
             
-    if target:
-        # 공식 집계된 전일 하루 통계 평균치 매pping
-        pm10      = target.get("pm10Value", "-")
-        pm25      = target.get("pm25Value", "-")
-        o3        = target.get("o3Value", "-")
-        no2       = target.get("no2Value", "-")
-        co        = target.get("coValue", "-")
-        so2       = target.get("so2Value", "-")
-        data_time = target.get("dataTime", "-")
+            # 명세서에 명시된 출력결과(Response Element) 영문 컬럼명 매핑
+            pm10      = target.get("pm10Value", "-")  # 미세먼지 평균농도
+            pm25      = target.get("pm25Value", "-")  # 초미세먼지 평균농도
+            o3        = target.get("o3Value", "-")    # 오존 평균농도
+            no2       = target.get("no2Value", "-")   # 이산화질소 평균농도
+            co        = target.get("coValue", "-")    # 일산화탄소 평균농도
+            so2       = target.get("so2Value", "-")   # 아황산가스 평균농도
+            data_time = target.get("msurDt", "-")     # 측정일 (YYYY-MM-DD)
+    else:
+        st.sidebar.warning(f"대기 API 서버 응답 지연 (상태코드: {air_response.status_code})")
+
 except Exception as e:
     st.sidebar.error(f"대기 API 오류: {e}")
 
