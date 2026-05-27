@@ -208,11 +208,10 @@ ai_model, feature_names = train_heritage_model()
 
 
 # ==========================================================
-# 3. 실시간 데이터 수집 (최근 3일 시계열 데이터 수집 구조)
+# 3. 실시간 데이터 수집 (안전한 시계열 수집 및 포맷 통일)
 # ==========================================================
 weather_list = []
 try:
-    # 3일치 수집을 위해 수집 개수를 3개(numOfRows=3)로 확장하고 구간 전달
     asos_params = {
         "serviceKey": SERVICE_KEY, "numOfRows": "3", "dataType": "JSON",
         "dataCd": "ASOS", "dateCd": "DAY",
@@ -228,8 +227,10 @@ try:
     for item in items:
         rf = item.get("sumRn", "0.0")
         if rf == "" or rf is None: rf = "0.0"
+        # 문자열 날짜를 YYYY-MM-DD 형태로 통일
+        date_str = datetime.strptime(item["tm"], "%Y-%m-%d").strftime("%Y-%m-%d")
         weather_list.append({
-            "date": pd.to_datetime(item["tm"]),
+            "date": date_str,
             "temp": float(item["avgTa"]),
             "humidity": float(item["avgRhm"]),
             "rainfall": float(rf),
@@ -243,7 +244,6 @@ try:
     air_url = "http://apis.data.go.kr/B552584/ArpltnStatsSvc/getMsrstnAcctoRDyrg"
     safe_service_key = urllib.parse.unquote(SERVICE_KEY)
     
-    # 에어코리아 역시 3일 간의 통계 조회 기간 반영
     air_params = {
         "serviceKey": safe_service_key,
         "returnType": "json",
@@ -260,21 +260,25 @@ try:
         items = air_data["response"]["body"]["items"]
         
         for item in items:
-            air_list.append({
-                "date": pd.to_datetime(item.get("msurDt")),
-                "pm10": float(item.get("pm10Value", 0)),
-                "pm25": float(item.get("pm25Value", 0)),
-                "o3": float(item.get("o3Value", 0)),
-                "no2": float(item.get("no2Value", 0)),
-                "co": float(item.get("coValue", 0)),
-                "so2": float(item.get("so2Value", 0))
-            })
+            # 에어코리아 날짜(YYYY-MM-DD) 추출 및 포맷 통일
+            raw_msur_dt = item.get("msurDt", "")
+            if raw_msur_dt:
+                date_str = datetime.strptime(raw_msur_dt, "%Y-%m-%d").strftime("%Y-%m-%d")
+                air_list.append({
+                    "date": date_str,
+                    "pm10": float(item.get("pm10Value", 0)),
+                    "pm25": float(item.get("pm25Value", 0)),
+                    "o3": float(item.get("o3Value", 0)),
+                    "no2": float(item.get("no2Value", 0)),
+                    "co": float(item.get("coValue", 0)),
+                    "so2": float(item.get("so2Value", 0))
+                })
 except Exception as e:
     st.sidebar.error(f"대기 API 3일치 파싱 오류: {e}")
 
 
 # ==========================================================
-# 4. 데이터프레임 병합 및 정밀 파생변수 계산
+# 4. 데이터프레임 병합 및 정밀 파생변수 계산 (정렬 보정)
 # ==========================================================
 curr_env = {}
 curr_raw = {}
@@ -284,25 +288,27 @@ if weather_list and air_list:
     w_df_curr = pd.DataFrame(weather_list)
     a_df_curr = pd.DataFrame(air_list)
     
-    # 날짜 기준 통합 후 파생변수 일괄 생성
-    merged_curr = pd.merge(w_df_curr, a_df_curr, on="date", how="inner").sort_values('date').reset_index(drop=True)
+    # 중복 제거 및 날짜 기준 결합
+    merged_curr = pd.merge(w_df_curr, a_df_curr, on="date", how="inner")
+    
+    # 확실하게 날짜 기준 오름차순 정렬 (과거 -> 현재 순서로 데이터가 쌓여야 diff와 rolling이 작동함)
+    merged_curr = merged_curr.sort_values('date', ascending=True).reset_index(drop=True)
     
     if len(merged_curr) >= 1:
-        # 논문 기반 온전한 3개년 스케일의 롤링/차분 수식 적용
+        # 파생변수 일괄 생성 함수 적용
         processed_curr = add_derived_features(merged_curr)
         
-        # [핵심] 3일 데이터 프레임 중 가장 마지막 행(어제 일자)을 테스트 타겟으로 추출
+        # 정렬된 상태이므로 맨 마지막 행[-1]이 무조건 가장 최신 날짜(어제)가 됨
         target_row = processed_curr.iloc[-1]
         
-        tm = target_row["date"].strftime("%Y-%m-%d")
+        tm = target_row["date"]
         data_time = tm
         
-        # 화면 출력용 원본 딕셔너리 정렬
+        # 화면 출력용 원본 데이터
         curr_raw = {k: target_row[k] for k in ["temp", "humidity", "rainfall", "wind", "pm10", "pm25", "so2", "no2", "co", "o3"]}
-        # AI 모델 입력 데이터셋 동기화
+        # AI 모델 입력용 파생변수 데이터셋
         curr_env = {k: target_row[k] for k in FEATURES[:-2]} 
 else:
-    # 데이터 누락 시의 안전용 디폴트 방어 코드
     curr_raw = {"temp": 0.0, "humidity": 0.0, "rainfall": 0.0, "wind": 0.0, "pm10": 0.0, "pm25": 0.0, "so2": 0.0, "no2": 0.0, "co": 0.0, "o3": 0.0}
     curr_env = {k: 0.0 for k in FEATURES[:-2]}
 
@@ -312,7 +318,6 @@ curr_weighted_risk = calc_weighted_risk({**curr_raw, "dew_gap": curr_env.get("de
                                          "temp_change": curr_env.get("temp_change", 0.0), 
                                          "humidity_change": curr_env.get("humidity_change", 0.0)})
 curr_risk_grade = final_classify(curr_weighted_risk)
-
 
 # ==========================================================
 # 5. UI 스타일
