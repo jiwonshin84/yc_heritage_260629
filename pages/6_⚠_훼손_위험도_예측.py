@@ -243,7 +243,7 @@ try:
         "pageNo": "1",
         "inqBginDt": base_date,      # 조회시작일자 (예: 20260526)
         "inqEndDt": base_date,        # 조회종료일자 (예: 20260526)
-        "msrstnName": "창구동",       # 영천시 관측 측정소명
+        "msrstnName": "영천",       # 영천시 관측 측정소명
     }
 
     air_response = requests.get(air_url, params=air_params, timeout=15)
