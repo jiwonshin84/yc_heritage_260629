@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import requests
 import os
+import urllib.parse
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from sklearn.ensemble import RandomForestClassifier
@@ -17,9 +18,14 @@ st.set_page_config(
 )
 
 SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
+
+# 시계열 변수 계산을 위해 날짜 구간 정의 (어제 기준 최근 3일간)
 now = datetime.now(ZoneInfo("Asia/Seoul"))
-yesterday = now - timedelta(days=1)
-base_date = yesterday.strftime("%Y%m%d")
+end_date_dt = now - timedelta(days=1)       # 어제 (종료일)
+start_date_dt = now - timedelta(days=3)     # 3일 전 (시작일)
+
+end_date = end_date_dt.strftime("%Y%m%d")      # 예: 20260526
+start_date = start_date_dt.strftime("%Y%m%d")  # 예: 20260524
 
 if 'danger_count' not in st.session_state:
     st.session_state['danger_count'] = 0
@@ -30,7 +36,8 @@ if 'danger_count' not in st.session_state:
 
 def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
     """온습도·공기질 데이터프레임에 파생변수를 추가하여 반환"""
-    df = df.copy()
+    df = df.copy().sort_values('date').reset_index(drop=True)
+    
     df["temp_change"]      = df["temp"].diff().fillna(0)
     df["humidity_change"]  = df["humidity"].diff().fillna(0)
     df["dew_point"]        = df["temp"] - ((100 - df["humidity"]) / 5)
@@ -103,9 +110,7 @@ def exposure_multiplier(exp: str) -> float:
 
 
 def material_extra_risk(mat: str, row: dict) -> float:
-    """
-    재질별 추가 위험 보정값
-    """
+    """재질별 추가 위험 보정값"""
     extra = 0.0
     dew   = row.get("dew_gap", 5.0)
     hum   = row.get("humidity", 50.0)
@@ -152,7 +157,7 @@ def train_heritage_model():
     a_df = pd.read_csv(air_path)
 
     w_df = w_df.rename(columns={
-        'avg_temperature_c':       'temp',
+        'avg_temperature_c':        'temp',
         'daily_precipitation_mm':  'rainfall',
         'avg_wind_speed_ms':       'wind',
         'avg_relative_humidity_pct': 'humidity'
@@ -201,114 +206,113 @@ def train_heritage_model():
 
 ai_model, feature_names = train_heritage_model()
 
+
 # ==========================================================
-# 3. 실시간 데이터 수집 (어제 자 일단위 API 데이터로 변경)
+# 3. 실시간 데이터 수집 (최근 3일 시계열 데이터 수집 구조)
 # ==========================================================
-tm, temp, humidity, rainfall, wind_speed = "-", "-", "-", "-", "-"
+weather_list = []
 try:
-    # 일단위(DAY) 데이터 수집을 위한 파라미터 변경
+    # 3일치 수집을 위해 수집 개수를 3개(numOfRows=3)로 확장하고 구간 전달
     asos_params = {
-        "serviceKey": SERVICE_KEY, "numOfRows": "1", "dataType": "JSON",
+        "serviceKey": SERVICE_KEY, "numOfRows": "3", "dataType": "JSON",
         "dataCd": "ASOS", "dateCd": "DAY",
-        "startDt": base_date, "endDt": base_date,
+        "startDt": start_date, "endDt": end_date,
         "stnIds": "281"
     }
-    res  = requests.get(
+    res = requests.get(
         "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList",
         params=asos_params, timeout=10
     ).json()
-    item = res["response"]["body"]["items"]["item"][0]
+    items = res["response"]["body"]["items"]["item"]
     
-    # 시간 자료 컬럼(ta, hm 등)에서 일자별 통계 컬럼(avgTa, avgRhm 등)으로 변경
-    tm = item["tm"]
-    temp = item["avgTa"]       # 평균 기온
-    humidity = item["avgRhm"]   # 평균 상대습도
-    rainfall = item.get("sumRn", "0.0")  # 일강수량 (비가 안 오면 공백일 수 있음)
-    if rainfall == "": rainfall = "0.0"
-    wind_speed = item["avgWs"] # 평균 풍속
-except:
-    pass
+    for item in items:
+        rf = item.get("sumRn", "0.0")
+        if rf == "" or rf is None: rf = "0.0"
+        weather_list.append({
+            "date": pd.to_datetime(item["tm"]),
+            "temp": float(item["avgTa"]),
+            "humidity": float(item["avgRhm"]),
+            "rainfall": float(rf),
+            "wind": float(item["avgWs"])
+        })
+except Exception as e:
+    st.sidebar.error(f"기상 API 3일치 파싱 오류: {e}")
 
-pm10, pm25, o3, no2, co, so2, data_time = "-", "-", "-", "-", "-", "-", "-"
+air_list = []
 try:
-    # 1. 새 요청 주소(URL) 설정
     air_url = "http://apis.data.go.kr/B552584/ArpltnStatsSvc/getMsrstnAcctoRDyrg"
+    safe_service_key = urllib.parse.unquote(SERVICE_KEY)
     
-    # 2. 제공해주신 명세서 필수/옵션 항목 변수 매칭
-    # base_date는 상단에 정의된 어제 날짜인 "YYYYMMDD" 형식을 그대로 사용합니다.
+    # 에어코리아 역시 3일 간의 통계 조회 기간 반영
     air_params = {
-        "serviceKey": SERVICE_KEY,
+        "serviceKey": safe_service_key,
         "returnType": "json",
         "numOfRows": "10",
         "pageNo": "1",
-        "inqBginDt": base_date,      # 조회시작일자 (예: 20260526)
-        "inqEndDt": base_date,        # 조회종료일자 (예: 20260526)
-        "msrstnName": "영천",       # 영천시 관측 측정소명
+        "inqBginDt": start_date,
+        "inqEndDt": end_date,
+        "msrstnName": "영천",
     }
-
     air_response = requests.get(air_url, params=air_params, timeout=15)
     
     if air_response.status_code == 200 and air_response.text.strip().startswith("{"):
         air_data = air_response.json()
         items = air_data["response"]["body"]["items"]
         
-        # 조회 기간을 하루만 지정했으므로 결과가 있다면 리스트의 첫 번째[0]가 어제 데이터입니다.
-        if items:
-            target = items[0]
-            
-            # 명세서에 명시된 출력결과(Response Element) 영문 컬럼명 매핑
-            pm10      = target.get("pm10Value", "-")  # 미세먼지 평균농도
-            pm25      = target.get("pm25Value", "-")  # 초미세먼지 평균농도
-            o3        = target.get("o3Value", "-")    # 오존 평균농도
-            no2       = target.get("no2Value", "-")   # 이산화질소 평균농도
-            co        = target.get("coValue", "-")    # 일산화탄소 평균농도
-            so2       = target.get("so2Value", "-")   # 아황산가스 평균농도
-            data_time = target.get("msurDt", "-")     # 측정일 (YYYY-MM-DD)
-    else:
-        st.sidebar.warning(f"대기 API 서버 응답 지연 (상태코드: {air_response.status_code})")
-
+        for item in items:
+            air_list.append({
+                "date": pd.to_datetime(item.get("msurDt")),
+                "pm10": float(item.get("pm10Value", 0)),
+                "pm25": float(item.get("pm25Value", 0)),
+                "o3": float(item.get("o3Value", 0)),
+                "no2": float(item.get("no2Value", 0)),
+                "co": float(item.get("coValue", 0)),
+                "so2": float(item.get("so2Value", 0))
+            })
 except Exception as e:
-    st.sidebar.error(f"대기 API 오류: {e}")
+    st.sidebar.error(f"대기 API 3일치 파싱 오류: {e}")
+
 
 # ==========================================================
-# 4. 현재 환경값 → 파생변수 계산 (일단위 데이터 기반)
+# 4. 데이터프레임 병합 및 정밀 파생변수 계산
 # ==========================================================
-def safe_f(v):
-    try: return float(v)
-    except: return 0.0
+curr_env = {}
+curr_raw = {}
+tm, data_time = "-", "-"
 
-curr_raw = {
-    "temp":     safe_f(temp),
-    "humidity": safe_f(humidity),
-    "rainfall": safe_f(rainfall),
-    "wind":     safe_f(wind_speed),
-    "pm10":     safe_f(pm10),
-    "pm25":     safe_f(pm25),
-    "so2":      safe_f(so2),
-    "no2":      safe_f(no2),
-    "co":       safe_f(co),
-    "o3":       safe_f(o3),
-}
+if weather_list and air_list:
+    w_df_curr = pd.DataFrame(weather_list)
+    a_df_curr = pd.DataFrame(air_list)
+    
+    # 날짜 기준 통합 후 파생변수 일괄 생성
+    merged_curr = pd.merge(w_df_curr, a_df_curr, on="date", how="inner").sort_values('date').reset_index(drop=True)
+    
+    if len(merged_curr) >= 1:
+        # 논문 기반 온전한 3개년 스케일의 롤링/차분 수식 적용
+        processed_curr = add_derived_features(merged_curr)
+        
+        # [핵심] 3일 데이터 프레임 중 가장 마지막 행(어제 일자)을 테스트 타겟으로 추출
+        target_row = processed_curr.iloc[-1]
+        
+        tm = target_row["date"].strftime("%Y-%m-%d")
+        data_time = tm
+        
+        # 화면 출력용 원본 딕셔너리 정렬
+        curr_raw = {k: target_row[k] for k in ["temp", "humidity", "rainfall", "wind", "pm10", "pm25", "so2", "no2", "co", "o3"]}
+        # AI 모델 입력 데이터셋 동기화
+        curr_env = {k: target_row[k] for k in FEATURES[:-2]} 
+else:
+    # 데이터 누락 시의 안전용 디폴트 방어 코드
+    curr_raw = {"temp": 0.0, "humidity": 0.0, "rainfall": 0.0, "wind": 0.0, "pm10": 0.0, "pm25": 0.0, "so2": 0.0, "no2": 0.0, "co": 0.0, "o3": 0.0}
+    curr_env = {k: 0.0 for k in FEATURES[:-2]}
 
-# 학습 데이터 형태와 호환되도록 세팅
-curr_env = {
-    **curr_raw,
-    "temp_change":      0.0,
-    "humidity_change":  0.0,
-    "dew_gap":          curr_raw["temp"] - (curr_raw["temp"] - ((100 - curr_raw["humidity"]) / 5)),
-    "humidity_ma3":     curr_raw["humidity"],
-    "pm10_ma3":         curr_raw["pm10"],
-    "temp_std":         0.0,
-    "humidity_std":     0.0,
-    "pm_load":          (curr_raw["pm10"] + curr_raw["pm25"]) * 3,
-}
+# 가중합 및 위험 등급 연산
+dew_point = curr_raw["temp"] - ((100 - curr_raw["humidity"]) / 5)
+curr_weighted_risk = calc_weighted_risk({**curr_raw, "dew_gap": curr_env.get("dew_gap", 5.0),
+                                         "temp_change": curr_env.get("temp_change", 0.0), 
+                                         "humidity_change": curr_env.get("humidity_change", 0.0)})
+curr_risk_grade = final_classify(curr_weighted_risk)
 
-dew_point       = curr_raw["temp"] - ((100 - curr_raw["humidity"]) / 5)
-curr_env["dew_gap"] = curr_raw["temp"] - dew_point
-
-curr_weighted_risk = calc_weighted_risk({**curr_raw, "dew_gap": curr_env["dew_gap"],
-                                         "temp_change": 0, "humidity_change": 0})
-curr_risk_grade    = final_classify(curr_weighted_risk)
 
 # ==========================================================
 # 5. UI 스타일
@@ -320,6 +324,7 @@ label_style     = "font-size:14px; color:#6b7280; margin-bottom:4px;"
 value_style     = "font-size:22px; font-weight:700; color:#111827; margin-bottom:18px;"
 time_style      = "font-size:13px; color:#9ca3af; margin-top:12px; position:absolute; bottom:20px;"
 
+
 # ==========================================================
 # 6. AI 분석 (문화재별 위험 예측)
 # ==========================================================
@@ -329,7 +334,7 @@ res_df      = pd.DataFrame()
 mat_map = {'목조': 0, '석조': 1, '금속': 2, '벽화': 3}
 exp_map = {'실외': 0, '실내': 1, '반실외': 2}
 
-if ai_model:
+if ai_model and curr_env:
     results = []
     for _, row in heritage_df.iterrows():
         mat   = str(row['재질']).strip()
@@ -361,6 +366,7 @@ if ai_model:
     cnt_dang = len(res_df[res_df['등급'] == 2])
     st.session_state['danger_count'] = cnt_dang
 
+
 # ==========================================================
 # 7. 메인 화면 구성
 # ==========================================================
@@ -371,7 +377,7 @@ st.markdown(
 st.divider()
 
 st.markdown(
-    '<h3 style="font-size:22px; margin-bottom:15px;">🌿 전일 영천 환경 종합 지표 및 분석 요약</h3>',
+    '<h3 style="font-size:22px; margin-bottom:15px;">🌿 전일 영천 환경 종합 지표 및 분석 요약 (3일 연속성 분석 적용)</h3>',
     unsafe_allow_html=True
 )
 left, center, right = st.columns([1.4, 2.0, 1.0])
@@ -381,10 +387,10 @@ with left:
     <div style="{card_style}; position:relative;">
       <div style="{title_style}">🌦 기상 환경 (일평균)</div><hr>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:20px;">
-        <div><div style="{label_style}">🌡 평균기온</div><div style="{value_style}">{temp} °C</div></div>
-        <div><div style="{label_style}">💧 평균습도</div><div style="{value_style}">{humidity} %</div></div>
-        <div><div style="{label_style}">🌧 일강수량</div><div style="{value_style}">{rainfall} mm</div></div>
-        <div><div style="{label_style}">💨 평균풍속</div><div style="{value_style}">{wind_speed} m/s</div></div>
+        <div><div style="{label_style}">🌡 평균기온</div><div style="{value_style}">{curr_raw['temp']:.1f} °C</div></div>
+        <div><div style="{label_style}">💧 평균습도</div><div style="{value_style}">{curr_raw['humidity']:.1f} %</div></div>
+        <div><div style="{label_style}">🌧 일강수량</div><div style="{value_style}">{curr_raw['rainfall']:.1f} mm</div></div>
+        <div><div style="{label_style}">💨 평균풍속</div><div style="{value_style}">{curr_raw['wind']:.1f} m/s</div></div>
       </div>
       <div style="{time_style}">⏱ 기준일자: {tm}</div>
     </div>""", unsafe_allow_html=True)
@@ -395,16 +401,16 @@ with center:
       <div style="{title_style}">🌫 대기오염 현황 (24h 평균)</div><hr>
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-top:20px;">
         <div>
-          <div style="{label_style}">PM10</div><div style="{value_style}">{pm10}</div>
-          <div style="{label_style}">O₃</div><div style="{value_style}">{o3}</div>
+          <div style="{label_style}">PM10</div><div style="{value_style}">{curr_raw['pm10']:.0f}</div>
+          <div style="{label_style}">O₃</div><div style="{value_style}">{curr_raw['o3']:.3f}</div>
         </div>
         <div>
-          <div style="{label_style}">PM2.5</div><div style="{value_style}">{pm25}</div>
-          <div style="{label_style}">NO₂</div><div style="{value_style}">{no2}</div>
+          <div style="{label_style}">PM2.5</div><div style="{value_style}">{curr_raw['pm25']:.0f}</div>
+          <div style="{label_style}">NO₂</div><div style="{value_style}">{curr_raw['no2']:.3f}</div>
         </div>
         <div>
-          <div style="{label_style}">CO</div><div style="{value_style}">{co}</div>
-          <div style="{label_style}">SO₂</div><div style="{value_style}">{so2}</div>
+          <div style="{label_style}">CO</div><div style="{value_style}">{curr_raw['co']:.1f}</div>
+          <div style="{label_style}">SO₂</div><div style="{value_style}">{curr_raw['so2']:.3f}</div>
         </div>
       </div>
       <div style="{time_style}">⏱ 측정시각: {data_time}</div>
@@ -432,23 +438,23 @@ with right:
 
 st.divider()
 
-with st.expander("🔬 현재 환경 파생변수 상세 보기 (논문 기반)", expanded=False):
+with st.expander("🔬 현재 환경 파생변수 상세 보기 (정밀 연산 적용)", expanded=False):
     d1, d2, d3, d4 = st.columns(4)
     d1.metric("이슬점 (℃)",      f"{dew_point:.1f}")
-    d1.metric("결로 위험 간격",   f"{curr_env['dew_gap']:.1f} ℃",
-              delta="위험" if curr_env['dew_gap'] < 2 else ("주의" if curr_env['dew_gap'] < 5 else "안전"))
-    d2.metric("PM 누적 노출",    f"{curr_env['pm_load']:.1f}")
+    d1.metric("결로 위험 간격",   f"{curr_env.get('dew_gap',0):.1f} ℃",
+              delta="위험" if curr_env.get('dew_gap',9) < 2 else ("주의" if curr_env.get('dew_gap',9) < 5 else "안전"))
+    d2.metric("PM 3일 누적 노출",    f"{curr_env.get('pm_load',0):.1f}")
     d2.metric("가중합 위험지수", f"{curr_weighted_risk:.3f}")
-    d3.metric("온도 변화량", f"{curr_env['temp_change']:.1f} ℃")
-    d3.metric("습도 변화량", f"{curr_env['humidity_change']:.1f} %")
-    d4.metric("결로위험 등급",   classify_dew(curr_env['dew_gap']))
-    d4.metric("PM10 위험 등급",  classify_pm10(curr_raw['pm10']))
+    d3.metric("온도 변화량 (전일대비)", f"{curr_env.get('temp_change',0):.1f} ℃")
+    d3.metric("습도 변화량 (전일대비)", f"{curr_env.get('humidity_change',0):.1f} %")
+    d4.metric("3일 습도 표준편차",   f"{curr_env.get('humidity_std',0):.2f}")
+    d4.metric("3일 곰팡이 위험 등급",  f"{curr_env.get('mold_risk',0)}")
 
 st.divider()
 
 if not res_df.empty:
     st.markdown(
-        '<h3 style="font-size:22px; margin-bottom:15px;">📊 AI 위험도 판정 통계 (일단위 데이터 기준)</h3>',
+        '<h3 style="font-size:22px; margin-bottom:15px;">📊 AI 위험도 판정 통계 (정밀 파생변수 반영)</h3>',
         unsafe_allow_html=True
     )
     s1, s2, s3 = st.columns(3)
@@ -483,7 +489,7 @@ if not res_df.empty:
         column_config={
             "위험지수": st.column_config.NumberColumn("위험지수 (0~2)", format="%.3f"),
             "위험수치": st.column_config.ProgressColumn(
-                "훼손 위험 지수", min_value=0, max_value=100, format="%f%%"
+                "### 훼손 위험 지수", min_value=0, max_value=100, format="%f%%"
             ),
         },
         use_container_width=True,
