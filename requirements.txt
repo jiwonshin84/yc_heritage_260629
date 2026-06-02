@@ -7,3 +7,6 @@ scikit-learn
 google-generativeai
 matplotlib
 seaborn
+
+requests
+streamlit-autorefresh
