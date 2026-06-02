@@ -1,269 +1,165 @@
 import streamlit as st
+import requests
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
-# =====================================================
+# ========================================
 # 페이지 설정
-# =====================================================
+# ========================================
 
 st.set_page_config(
-    page_title="문화유산 실시간 환경 모니터링",
-    page_icon="🏛",
+    page_title="문화재 환경 모니터링",
+    page_icon="🏛️",
     layout="wide"
 )
 
-# =====================================================
-# 자동 새로고침 (60초)
-# =====================================================
+# ========================================
+# 자동 새로고침
+# ========================================
 
 st_autorefresh(
-    interval=60000,
-    key="refresh"
+    interval=5000,
+    key="firebase_refresh"
 )
 
-# =====================================================
-# 구글 시트 CSV 주소
-# =====================================================
+# ========================================
+# Firebase URL
+# ========================================
 
-CSV_URL = (
-    "https://docs.google.com/spreadsheets/d/"
-    "15l2uXRqMwbl-YpghI6Gw_hf0Kr2bBuu7Pz4jyDZov7I/"
-    "export?format=csv"
+FIREBASE_URL = (
+    "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
 )
 
-# =====================================================
-# 데이터 불러오기
-# =====================================================
-
-@st.cache_data(ttl=60)
-def load_data():
-
-    df = pd.read_csv(CSV_URL)
-
-    return df
+# ========================================
+# 데이터 읽기
+# ========================================
 
 try:
 
-    df = load_data()
+    response = requests.get(FIREBASE_URL, timeout=10)
+
+    if response.status_code == 200:
+        data = response.json()
+    else:
+        st.error(f"Firebase 오류 : {response.status_code}")
+        st.stop()
 
 except Exception as e:
-
-    st.error("Google Sheet 연결 실패")
-
-    st.exception(e)
-
+    st.error(f"데이터 연결 실패 : {e}")
     st.stop()
 
-# =====================================================
-# 데이터 확인
-# =====================================================
+# ========================================
+# 값 추출
+# ========================================
 
-if df.empty:
+temp = data.get("temperature", "-")
+hum = data.get("humidity", "-")
+light = data.get("light_percent", "-")
+dust = data.get("dust_percent", "-")
+timestamp = data.get("timestamp", "-")
+device = data.get("device", "-")
 
-    st.warning("데이터가 없습니다.")
-
-    st.stop()
-
-# =====================================================
-# 컬럼 전처리
-# =====================================================
-
-df["Timestamp"] = pd.to_datetime(df["Timestamp"])
-
-latest = df.iloc[-1]
-
-temp = latest["Temperature"]
-humid = latest["Humidity"]
-
-if "Light" in df.columns:
-    light = latest["Light"]
-else:
-    light = 0
-
-# =====================================================
-# 위험도 계산
-# =====================================================
-
-risk = 0
-
-# 온도
-
-if temp >= 35:
-    risk += 30
-
-elif temp >= 30:
-    risk += 20
-
-elif temp >= 25:
-    risk += 10
-
-# 습도
-
-if humid >= 80:
-    risk += 50
-
-elif humid >= 70:
-    risk += 30
-
-elif humid >= 60:
-    risk += 15
-
-# 조도
-
-if pd.notna(light):
-
-    if light >= 500:
-        risk += 20
-
-    elif light >= 200:
-        risk += 10
-
-risk = min(risk, 100)
-
-# =====================================================
-# 위험도 등급
-# =====================================================
-
-if risk < 25:
-
-    level = "🟢 안전"
-
-elif risk < 50:
-
-    level = "🟡 주의"
-
-elif risk < 75:
-
-    level = "🟠 위험"
-
-else:
-
-    level = "🔴 매우 위험"
-
-# =====================================================
+# ========================================
 # 제목
-# =====================================================
+# ========================================
 
-st.title("🏛 문화유산 실시간 환경 모니터링")
+st.title("🏛️ 문화재 실시간 환경 모니터링")
 
-st.caption(
-    f"최근 측정 시각 : {latest['Timestamp']}"
-)
+st.caption(f"마지막 측정 : {timestamp}")
 
-# =====================================================
-# 실시간 데이터
-# =====================================================
+# ========================================
+# 실시간 센서값
+# ========================================
 
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-
     st.metric(
-        "🌡 기온",
+        "🌡️ 기온",
         f"{temp} ℃"
     )
 
 with col2:
-
     st.metric(
         "💧 습도",
-        f"{humid} %"
+        f"{hum} %"
     )
 
 with col3:
-
     st.metric(
-        "💡 조도",
-        f"{light}"
+        "☀️ 조도",
+        f"{light} %"
     )
 
 with col4:
-
     st.metric(
-        "⚠ 위험도",
-        f"{risk}/100"
+        "🌫️ 먼지",
+        f"{dust} %"
     )
 
-st.success(
-    f"현재 상태 : {level}"
+# ========================================
+# 위험도 계산
+# ========================================
+
+risk = 0
+
+if temp >= 30:
+    risk += 30
+
+if hum >= 70:
+    risk += 30
+
+if dust >= 50:
+    risk += 40
+
+if risk < 30:
+    risk_text = "🟢 안전"
+
+elif risk < 60:
+    risk_text = "🟡 주의"
+
+else:
+    risk_text = "🔴 위험"
+
+st.divider()
+
+st.subheader("문화재 환경 위험도")
+
+st.progress(min(risk, 100))
+
+st.markdown(
+    f"### {risk_text} ({risk}점)"
 )
 
-# =====================================================
-# 그래프
-# =====================================================
+# ========================================
+# 상세 정보
+# ========================================
 
-st.markdown("---")
+st.divider()
 
-tab1, tab2, tab3 = st.tabs(
-    ["기온", "습도", "조도"]
+info = pd.DataFrame(
+    {
+        "항목": [
+            "측정시각",
+            "기온",
+            "습도",
+            "조도",
+            "미세먼지",
+            "장치명"
+        ],
+        "값": [
+            timestamp,
+            f"{temp}℃",
+            f"{hum}%",
+            f"{light}%",
+            f"{dust}%",
+            device
+        ]
+    }
 )
-
-with tab1:
-
-    st.subheader("🌡 기온 변화")
-
-    st.line_chart(
-        df.set_index("Timestamp")["Temperature"]
-    )
-
-with tab2:
-
-    st.subheader("💧 습도 변화")
-
-    st.line_chart(
-        df.set_index("Timestamp")["Humidity"]
-    )
-
-with tab3:
-
-    if "Light" in df.columns:
-
-        st.subheader("💡 조도 변화")
-
-        st.line_chart(
-            df.set_index("Timestamp")["Light"]
-        )
-
-# =====================================================
-# 최근 데이터
-# =====================================================
-
-st.markdown("---")
-
-st.subheader("📋 최근 측정 데이터")
 
 st.dataframe(
-    df.sort_values(
-        "Timestamp",
-        ascending=False
-    ).head(20),
-    use_container_width=True
+    info,
+    use_container_width=True,
+    hide_index=True
 )
-
-# =====================================================
-# 위험도 기준
-# =====================================================
-
-with st.expander("위험도 산정 기준"):
-
-    st.markdown("""
-    ### 🌡 온도
-    - 25℃ 이상 : +10점
-    - 30℃ 이상 : +20점
-    - 35℃ 이상 : +30점
-
-    ### 💧 습도
-    - 60% 이상 : +15점
-    - 70% 이상 : +30점
-    - 80% 이상 : +50점
-
-    ### 💡 조도
-    - 200 이상 : +10점
-    - 500 이상 : +20점
-
-    ### 등급
-    - 0~24 : 안전
-    - 25~49 : 주의
-    - 50~74 : 위험
-    - 75~100 : 매우 위험
-    """)
