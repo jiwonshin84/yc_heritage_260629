@@ -27,7 +27,7 @@ def get_latest_base_time():
 
     return (
         target.strftime("%Y-%m-%d"),
-        target.strftime("%H00")
+        target.strftime("%H:00")
     )
 
 
