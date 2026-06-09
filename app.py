@@ -48,7 +48,7 @@ NX = "92"
 NY = "106"
 
 # 최근 발표 시각
-base_date, base_time = get_latest_base_time()
+api_date, base_date, base_time = get_latest_base_time()
 
 # 기본값
 tm = f"{base_date} {base_time}"
