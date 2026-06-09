@@ -14,60 +14,42 @@ from zoneinfo import ZoneInfo
 
 SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
 
+
+def get_latest_base_time():
+
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+
+    # 초단기실황 발표 지연 고려
+    if now.minute < 40:
+        target = now - timedelta(hours=1)
+    else:
+        target = now
+
+    return (
+        target.strftime("%Y%m%d"),
+        target.strftime("%H00")
+    )
+
+
 # ============================================
-# 1. 기상청 ASOS 전날 최신 기상자료
+# 1. 기상청 초단기실황 최신 자료
 # ============================================
 
-ASOS_URL = (
+ULTRA_URL = (
     "https://apis.data.go.kr/"
-    "1360000/AsosHourlyInfoService/getWthrDataList"
+    "1360000/VilageFcstInfoService_2.0/"
+    "getUltraSrtNcst"
 )
 
-# 영천 관측소
-STN_ID = "281"
+# 영천시 중심 격자
+NX = "92"
+NY = "106"
 
-# 한국시간
-now = datetime.now(ZoneInfo("Asia/Seoul"))
+# 최근 발표 시각
+base_date, base_time = get_latest_base_time()
 
-# 전날
-yesterday = now - timedelta(days=1)
-
-base_date = yesterday.strftime("%Y%m%d")
-base_hour = "23"
-
-print("현재 한국시간:", now)
-print("조회 날짜:", base_date)
-print("조회 시간:", base_hour)
-
-# ============================================
-# ASOS 요청 파라미터
-# ============================================
-
-asos_params = {
-    "serviceKey": SERVICE_KEY,
-    "pageNo": "1",
-    "numOfRows": "1",
-    "dataType": "JSON",
-
-    "dataCd": "ASOS",
-    "dateCd": "HR",
-
-    # 전날 23시 데이터
-    "startDt": base_date,
-    "startHh": base_hour,
-
-    "endDt": base_date,
-    "endHh": base_hour,
-
-    # 영천 관측소
-    "stnIds": STN_ID
-}
-
-# ============================================
 # 기본값
-# ============================================
-
-tm = "-"
+tm = f"{base_date} {base_time}"
 
 temp = "-"
 humidity = "-"
@@ -75,54 +57,109 @@ humidity = "-"
 rainfall = "-"
 wind_speed = "-"
 
-# ============================================
-# ASOS API 요청
-# ============================================
+rain_type = "-"
+wind_dir = "-"
+
+# 풍향 변환 함수
+def degree_to_direction(deg):
+
+    try:
+        deg = float(deg)
+
+        dirs = [
+            "북", "북동", "동", "남동",
+            "남", "남서", "서", "북서"
+        ]
+
+        return dirs[
+            round(deg / 45) % 8
+        ]
+
+    except:
+        return "-"
+
 
 try:
 
+    ultra_params = {
+        "serviceKey": SERVICE_KEY,
+        "pageNo": "1",
+        "numOfRows": "1000",
+        "dataType": "JSON",
+
+        "base_date": base_date,
+        "base_time": base_time,
+
+        "nx": NX,
+        "ny": NY
+    }
+
     response = requests.get(
-        ASOS_URL,
-        params=asos_params,
+        ULTRA_URL,
+        params=ultra_params,
         timeout=30
     )
 
-    print("ASOS 응답코드:", response.status_code)
+    print("초단기실황 응답코드:", response.status_code)
 
     data = response.json()
 
-    print(data)
+    items = (
+        data["response"]["body"]
+        ["items"]["item"]
+    )
 
-    item = data["response"]["body"]["items"]["item"][0]
+    for item in items:
 
-    # 관측 시각
-    tm = item["tm"]
+        category = item["category"]
+        value = item["obsrValue"]
 
-    # 기온
-    temp = item["ta"]
+        if category == "T1H":
+            temp = value
 
-    # 습도
-    humidity = item["hm"]
+        elif category == "REH":
+            humidity = value
 
-    # 강수량
-    rainfall = item["rn"]
+        elif category == "RN1":
+            rainfall = value
 
-    # 풍속
-    wind_speed = item["ws"]
+        elif category == "WSD":
+            wind_speed = value
+
+        elif category == "VEC":
+            wind_dir = degree_to_direction(value)
+
+        elif category == "PTY":
+
+            rain_map = {
+                "0": "없음",
+                "1": "비",
+                "2": "비/눈",
+                "3": "눈",
+                "5": "빗방울",
+                "6": "빗방울눈날림",
+                "7": "눈날림"
+            }
+
+            rain_type = rain_map.get(
+                str(value),
+                str(value)
+            )
 
     print()
-    print("===== 전날 최신 기상 데이터 =====")
+    print("===== 초단기실황 =====")
+
     print("관측시각:", tm)
-
-    print("기온:", temp, "°C")
-    print("습도:", humidity, "%")
-
-    print("강수량:", rainfall, "mm")
-    print("풍속:", wind_speed, "m/s")
+    print("기온:", temp)
+    print("습도:", humidity)
+    print("강수량:", rainfall)
+    print("풍속:", wind_speed)
+    print("풍향:", wind_dir)
+    print("강수형태:", rain_type)
 
 except Exception as e:
 
-    print("기상 데이터 조회 실패")
+    print("초단기실황 조회 실패")
     print(e)
 
 # ============================================
