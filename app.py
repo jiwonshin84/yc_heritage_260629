@@ -48,10 +48,10 @@ NX = "92"
 NY = "106"
 
 # 최근 발표 시각
-api_date, base_date, base_time = get_latest_base_time()
+api_date, api_time, display_date = get_latest_base_time()
 
 # 기본값
-tm = f"{base_date} {base_time}"
+tm = f"{display_date} {api_time[:2]}:00"
 
 temp = "-"
 humidity = "-"
@@ -89,8 +89,8 @@ try:
         "numOfRows": "1000",
         "dataType": "JSON",
 
-        "base_date": base_date,
-        "base_time": base_time,
+        "base_date": api_date,
+        "base_time": api_time,
 
         "nx": NX,
         "ny": NY
