@@ -19,16 +19,18 @@ def get_latest_base_time():
 
     now = datetime.now(ZoneInfo("Asia/Seoul"))
 
-    # 초단기실황 발표 지연 고려
-    if now.minute < 40:
-        target = now - timedelta(hours=1)
-    else:
-        target = now
+    target = now.replace(minute=0, second=0, microsecond=0)
 
-    return (
-        target.strftime("%Y-%m-%d"),
-        target.strftime("%H:00")
-    )
+    # 초단기실황은 정시+40분 이후 공개
+    if now.minute < 40:
+        target -= timedelta(hours=1)
+
+    api_date = target.strftime("%Y%m%d")
+    api_time = target.strftime("%H00")
+
+    display_date = target.strftime("%Y-%m-%d")
+
+    return api_date, api_time, display_date
 
 
 # ============================================
