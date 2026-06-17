@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import pandas as pd
-import time
 
 # ========================================
 # 페이지 설정
@@ -13,17 +12,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# 5초마다 자동 새로고침
-st.markdown(
-    """
-    <meta http-equiv="refresh" content="5">
-    """,
-    unsafe_allow_html=True
-)
-
-if st.button("🔄 최신 데이터 새로고침"):
-    st.rerun()
-
 # ========================================
 # Firebase URL
 # ========================================
@@ -31,7 +19,36 @@ if st.button("🔄 최신 데이터 새로고침"):
 FIREBASE_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
 
 # ========================================
-# 데이터 읽기
+# 자동 확인용 HTML
+# 10초마다 Firebase 확인을 위해 페이지 재실행
+# ========================================
+
+st.markdown(
+    """
+    <meta http-equiv="refresh" content="10">
+    """,
+    unsafe_allow_html=True
+)
+
+# ========================================
+# 수동 새로고침 버튼
+# ========================================
+
+if st.button("🔄 최신 데이터 새로고침"):
+    st.rerun()
+
+# ========================================
+# 값 변환 함수
+# ========================================
+
+def to_float(value):
+    try:
+        return float(value)
+    except:
+        return 0.0
+
+# ========================================
+# Firebase 데이터 읽기
 # ========================================
 
 try:
@@ -52,14 +69,8 @@ if data is None:
     st.stop()
 
 # ========================================
-# 값 추출 함수
+# 값 추출
 # ========================================
-
-def to_float(value):
-    try:
-        return float(value)
-    except:
-        return 0.0
 
 temp = to_float(data.get("temperature", 0))
 hum = to_float(data.get("humidity", 0))
@@ -70,6 +81,18 @@ timestamp = data.get("timestamp", "-")
 device = data.get("device", "-")
 
 # ========================================
+# 마지막 timestamp 비교
+# ========================================
+
+if "last_timestamp" not in st.session_state:
+    st.session_state.last_timestamp = timestamp
+
+is_new_data = timestamp != st.session_state.last_timestamp
+
+if is_new_data:
+    st.session_state.last_timestamp = timestamp
+
+# ========================================
 # 제목
 # ========================================
 
@@ -77,6 +100,11 @@ st.title("🏛️ 문화재 실시간 환경 모니터링")
 
 st.caption(f"마지막 측정 : {timestamp}")
 st.caption(f"측정 장치 : {device}")
+
+if is_new_data:
+    st.success("새로운 센서 데이터가 반영되었습니다.")
+else:
+    st.info("새 데이터 확인 중입니다.")
 
 # ========================================
 # 실시간 센서값
@@ -111,6 +139,8 @@ if hum >= 70:
 if dust >= 50:
     risk += 40
 
+risk = min(risk, 100)
+
 if risk < 30:
     risk_text = "🟢 안전"
 
@@ -128,7 +158,7 @@ st.divider()
 
 st.subheader("문화재 환경 위험도")
 
-st.progress(min(risk, 100))
+st.progress(risk)
 
 st.markdown(f"### {risk_text} ({risk}점)")
 
