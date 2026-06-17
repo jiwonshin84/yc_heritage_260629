@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-
+import time
 
 # ========================================
 # 페이지 설정
@@ -13,23 +13,28 @@ st.set_page_config(
     layout="wide"
 )
 
+# 5초마다 자동 새로고침
+st.markdown(
+    """
+    <meta http-equiv="refresh" content="5">
+    """,
+    unsafe_allow_html=True
+)
+
 if st.button("🔄 최신 데이터 새로고침"):
     st.rerun()
-    
+
 # ========================================
 # Firebase URL
 # ========================================
 
-FIREBASE_URL = (
-    "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
-)
+FIREBASE_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
 
 # ========================================
 # 데이터 읽기
 # ========================================
 
 try:
-
     response = requests.get(FIREBASE_URL, timeout=10)
 
     if response.status_code == 200:
@@ -42,14 +47,25 @@ except Exception as e:
     st.error(f"데이터 연결 실패 : {e}")
     st.stop()
 
+if data is None:
+    st.warning("Firebase에 저장된 데이터가 없습니다.")
+    st.stop()
+
 # ========================================
-# 값 추출
+# 값 추출 함수
 # ========================================
 
-temp = data.get("temperature", "-")
-hum = data.get("humidity", "-")
-light = data.get("light_percent", "-")
-dust = data.get("dust_percent", "-")
+def to_float(value):
+    try:
+        return float(value)
+    except:
+        return 0.0
+
+temp = to_float(data.get("temperature", 0))
+hum = to_float(data.get("humidity", 0))
+light = to_float(data.get("light_percent", 0))
+dust = to_float(data.get("dust_percent", 0))
+
 timestamp = data.get("timestamp", "-")
 device = data.get("device", "-")
 
@@ -60,6 +76,7 @@ device = data.get("device", "-")
 st.title("🏛️ 문화재 실시간 환경 모니터링")
 
 st.caption(f"마지막 측정 : {timestamp}")
+st.caption(f"측정 장치 : {device}")
 
 # ========================================
 # 실시간 센서값
@@ -68,28 +85,16 @@ st.caption(f"마지막 측정 : {timestamp}")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric(
-        "🌡️ 기온",
-        f"{temp} ℃"
-    )
+    st.metric("🌡️ 기온", f"{temp:.1f} ℃")
 
 with col2:
-    st.metric(
-        "💧 습도",
-        f"{hum} %"
-    )
+    st.metric("💧 습도", f"{hum:.1f} %")
 
 with col3:
-    st.metric(
-        "☀️ 조도",
-        f"{light} %"
-    )
+    st.metric("☀️ 조도", f"{light:.1f} %")
 
 with col4:
-    st.metric(
-        "🌫️ 먼지",
-        f"{dust} %"
-    )
+    st.metric("🌫️ 먼지", f"{dust:.1f} %")
 
 # ========================================
 # 위험도 계산
@@ -115,15 +120,17 @@ elif risk < 60:
 else:
     risk_text = "🔴 위험"
 
+# ========================================
+# 위험도 표시
+# ========================================
+
 st.divider()
 
 st.subheader("문화재 환경 위험도")
 
 st.progress(min(risk, 100))
 
-st.markdown(
-    f"### {risk_text} ({risk}점)"
-)
+st.markdown(f"### {risk_text} ({risk}점)")
 
 # ========================================
 # 상세 정보
@@ -143,10 +150,10 @@ info = pd.DataFrame(
         ],
         "값": [
             timestamp,
-            f"{temp}℃",
-            f"{hum}%",
-            f"{light}%",
-            f"{dust}%",
+            f"{temp:.1f}℃",
+            f"{hum:.1f}%",
+            f"{light:.1f}%",
+            f"{dust:.1f}%",
             device
         ]
     }
