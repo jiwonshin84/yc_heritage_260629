@@ -442,6 +442,29 @@ if w_df_curr.empty or a_df_curr.empty:
 w_df_curr["date"] = pd.to_datetime(w_df_curr["date"])
 a_df_curr["date"] = pd.to_datetime(a_df_curr["date"])
 
+# 날짜별 1행으로 정리
+w_df_curr = (
+    w_df_curr
+    .sort_values("date")
+    .groupby("date", as_index=False)
+    .mean(numeric_only=True)
+)
+
+a_df_curr = (
+    a_df_curr
+    .sort_values("date")
+    .groupby("date", as_index=False)
+    .mean(numeric_only=True)
+)
+
+with st.expander("🔍 날짜 병합 확인"):
+    st.write("기상 API 날짜")
+    st.write(w_df_curr["date"].sort_values(ascending=False))
+
+    st.write("대기오염 API 날짜")
+    st.write(a_df_curr["date"].sort_values(ascending=False))
+
+
 st.write("기상 날짜")
 st.write(w_df_curr["date"])
 
