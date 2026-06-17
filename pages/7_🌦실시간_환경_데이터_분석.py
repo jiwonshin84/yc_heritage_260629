@@ -23,12 +23,12 @@ FIREBASE_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.fire
 # 10초마다 Firebase 확인을 위해 페이지 재실행
 # ========================================
 
-st.markdown(
-    """
-    <meta http-equiv="refresh" content="10">
-    """,
-    unsafe_allow_html=True
-)
+#st.markdown(
+#    """
+#    <meta http-equiv="refresh" content="10">
+#    """,
+#    unsafe_allow_html=True
+#)
 
 # ========================================
 # 값 변환 함수
