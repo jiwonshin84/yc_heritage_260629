@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
-from streamlit_autorefresh import st_autorefresh
+
 
 # ========================================
 # 페이지 설정
@@ -13,15 +13,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# ========================================
-# 자동 새로고침
-# ========================================
-
-st_autorefresh(
-    interval=5000,
-    key="firebase_refresh"
-)
-
+if st.button("🔄 최신 데이터 새로고침"):
+    st.rerun()
+    
 # ========================================
 # Firebase URL
 # ========================================
