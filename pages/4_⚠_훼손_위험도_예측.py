@@ -227,6 +227,12 @@ def train_heritage_model():
     w_df["date"] = pd.to_datetime(w_df["date"])
     a_df["date"] = pd.to_datetime(a_df["date"])
 
+    st.write("기상 날짜")
+    st.write(w_df_curr["date"])
+
+    st.write("대기 날짜")
+    st.write(a_df_curr["date"])
+
     m_df = pd.merge(w_df, a_df, on="date", how="inner")
     m_df = m_df.ffill()
     m_df = add_derived_features(m_df)
