@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import requests
 import os
 import urllib.parse
@@ -21,11 +20,13 @@ st.set_page_config(
     layout="wide"
 )
 
-SERVICE_KEY = "여기에_API_KEY_입력"
+SERVICE_KEY = st.secrets.get("SERVICE_KEY", "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323")
 
 now = datetime.now(ZoneInfo("Asia/Seoul"))
+
+# 최신 예측용: 최근 7일 범위에서 공공데이터 조회
 end_date_dt = now - timedelta(days=1)
-start_date_dt = now - timedelta(days=3)
+start_date_dt = now - timedelta(days=7)
 
 end_date = end_date_dt.strftime("%Y%m%d")
 start_date = start_date_dt.strftime("%Y%m%d")
@@ -38,7 +39,9 @@ if "danger_count" not in st.session_state:
 # ==========================================================
 
 def add_derived_features(df):
-    df = df.copy().sort_values("date").reset_index(drop=True)
+    df = df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date").reset_index(drop=True)
 
     df["temp_change"] = df["temp"].diff().fillna(0)
     df["humidity_change"] = df["humidity"].diff().fillna(0)
@@ -51,10 +54,6 @@ def add_derived_features(df):
 
     df["temp_std"] = df["temp"].rolling(3).std().fillna(0)
     df["humidity_std"] = df["humidity"].rolling(3).std().fillna(0)
-
-    df["condensation_risk"] = df["dew_gap"].apply(
-        lambda x: 1 if x < 2 else (0.5 if x < 5 else 0)
-    )
 
     df["mold_risk"] = (
         (df["humidity"] >= 75)
@@ -207,8 +206,11 @@ def train_heritage_model():
     weather_path = "data/processed/[2016_2025] yeongcheon_weather_daily.csv"
     air_path = "data/processed/[2019_2025] air_quality.csv"
 
-    if not os.path.exists(weather_path) or not os.path.exists(air_path):
-        return None, None, None, None
+    if not os.path.exists(weather_path):
+        return None, None, None, None, None, f"기상 파일 없음: {weather_path}"
+
+    if not os.path.exists(air_path):
+        return None, None, None, None, None, f"대기오염 파일 없음: {air_path}"
 
     w_df = pd.read_csv(weather_path)
     a_df = pd.read_csv(air_path)
@@ -256,31 +258,31 @@ def train_heritage_model():
                 score = min(base_score * adj + extra, 2.0)
                 target = final_classify(score)
 
-                row_data = {
-                    "temp": r.get("temp", 0),
-                    "humidity": r.get("humidity", 0),
-                    "rainfall": r.get("rainfall", 0),
-                    "wind": r.get("wind", 0),
-                    "pm10": r.get("pm10", 0),
-                    "pm25": r.get("pm25", 0),
-                    "so2": r.get("so2", 0),
-                    "no2": r.get("no2", 0),
-                    "co": r.get("co", 0),
-                    "o3": r.get("o3", 0),
-                    "temp_change": r.get("temp_change", 0),
-                    "humidity_change": r.get("humidity_change", 0),
-                    "dew_gap": r.get("dew_gap", 0),
-                    "humidity_ma3": r.get("humidity_ma3", 0),
-                    "pm10_ma3": r.get("pm10_ma3", 0),
-                    "temp_std": r.get("temp_std", 0),
-                    "humidity_std": r.get("humidity_std", 0),
-                    "pm_load": r.get("pm_load", 0),
-                    "mat_code": m_code,
-                    "exp_code": e_code,
-                    "target": target
-                }
-
-                train_rows.append(row_data)
+                train_rows.append(
+                    {
+                        "temp": r.get("temp", 0),
+                        "humidity": r.get("humidity", 0),
+                        "rainfall": r.get("rainfall", 0),
+                        "wind": r.get("wind", 0),
+                        "pm10": r.get("pm10", 0),
+                        "pm25": r.get("pm25", 0),
+                        "so2": r.get("so2", 0),
+                        "no2": r.get("no2", 0),
+                        "co": r.get("co", 0),
+                        "o3": r.get("o3", 0),
+                        "temp_change": r.get("temp_change", 0),
+                        "humidity_change": r.get("humidity_change", 0),
+                        "dew_gap": r.get("dew_gap", 0),
+                        "humidity_ma3": r.get("humidity_ma3", 0),
+                        "pm10_ma3": r.get("pm10_ma3", 0),
+                        "temp_std": r.get("temp_std", 0),
+                        "humidity_std": r.get("humidity_std", 0),
+                        "pm_load": r.get("pm_load", 0),
+                        "mat_code": m_code,
+                        "exp_code": e_code,
+                        "target": target
+                    }
+                )
 
     tdf = pd.DataFrame(train_rows).fillna(0)
 
@@ -310,6 +312,7 @@ def train_heritage_model():
     report_dict = classification_report(
         y_test,
         pred,
+        labels=[0, 1, 2],
         target_names=["안전", "주의", "위험"],
         output_dict=True,
         zero_division=0
@@ -324,13 +327,17 @@ def train_heritage_model():
         }
     ).sort_values("중요도", ascending=False)
 
-    return model, FEATURES, report_df, importance_df, accuracy
+    return model, FEATURES, report_df, importance_df, accuracy, None
 
 
-ai_model, feature_names, report_df, importance_df, accuracy = train_heritage_model()
+ai_model, feature_names, report_df, importance_df, accuracy, model_error = train_heritage_model()
+
+if model_error:
+    st.error(model_error)
+    st.stop()
 
 # ==========================================================
-# 4. 실시간 공공데이터 수집
+# 4. 최신 공공데이터 수집
 # ==========================================================
 
 weather_list = []
@@ -338,7 +345,7 @@ weather_list = []
 try:
     asos_params = {
         "serviceKey": SERVICE_KEY,
-        "numOfRows": "3",
+        "numOfRows": "10",
         "dataType": "JSON",
         "dataCd": "ASOS",
         "dateCd": "DAY",
@@ -361,24 +368,18 @@ try:
         if rf == "" or rf is None:
             rf = "0.0"
 
-        date_str = datetime.strptime(
-            item["tm"],
-            "%Y-%m-%d"
-        ).strftime("%Y-%m-%d")
-
         weather_list.append(
             {
-                "date": date_str,
-                "temp": float(item["avgTa"]),
-                "humidity": float(item["avgRhm"]),
+                "date": item["tm"],
+                "temp": float(item.get("avgTa", 0)),
+                "humidity": float(item.get("avgRhm", 0)),
                 "rainfall": float(rf),
-                "wind": float(item["avgWs"])
+                "wind": float(item.get("avgWs", 0))
             }
         )
 
-except Exception:
-    pass
-
+except Exception as e:
+    st.warning(f"기상 데이터 수집 실패: {e}")
 
 air_list = []
 
@@ -408,17 +409,12 @@ try:
         items = air_data["response"]["body"]["items"]
 
         for item in items:
-            raw_msur_dt = item.get("msurDt", "")
+            raw_date = item.get("msurDt", "")
 
-            if raw_msur_dt:
-                date_str = datetime.strptime(
-                    raw_msur_dt,
-                    "%Y-%m-%d"
-                ).strftime("%Y-%m-%d")
-
+            if raw_date:
                 air_list.append(
                     {
-                        "date": date_str,
+                        "date": raw_date,
                         "pm10": float(item.get("pm10Value", 0)),
                         "pm25": float(item.get("pm25Value", 0)),
                         "o3": float(item.get("o3Value", 0)),
@@ -428,20 +424,22 @@ try:
                     }
                 )
 
-except Exception:
-    pass
+except Exception as e:
+    st.warning(f"대기오염 데이터 수집 실패: {e}")
 
 # ==========================================================
-# 5. 최근 3일 데이터 구성
+# 5. 최신 환경 데이터 구성
 # ==========================================================
 
-w_df_curr = pd.DataFrame(weather_list) if weather_list else pd.DataFrame(
-    columns=["date", "temp", "humidity", "rainfall", "wind"]
-)
+w_df_curr = pd.DataFrame(weather_list)
+a_df_curr = pd.DataFrame(air_list)
 
-a_df_curr = pd.DataFrame(air_list) if air_list else pd.DataFrame(
-    columns=["date", "pm10", "pm25", "o3", "no2", "co", "so2"]
-)
+if w_df_curr.empty or a_df_curr.empty:
+    st.error("최신 기상 또는 대기오염 데이터를 불러오지 못했습니다.")
+    st.stop()
+
+w_df_curr["date"] = pd.to_datetime(w_df_curr["date"])
+a_df_curr["date"] = pd.to_datetime(a_df_curr["date"])
 
 merged_curr = pd.merge(
     w_df_curr,
@@ -450,54 +448,9 @@ merged_curr = pd.merge(
     how="inner"
 )
 
-test_fixed_data = pd.DataFrame(
-    [
-        {
-            "date": "2026-05-24",
-            "temp": 18.8,
-            "rainfall": 0.0,
-            "humidity": 75.8,
-            "wind": 1.2,
-            "pm10": 21.0,
-            "pm25": 13.0,
-            "so2": 0.004,
-            "no2": 0.008,
-            "co": 0.3,
-            "o3": 0.044
-        },
-        {
-            "date": "2026-05-25",
-            "temp": 22.6,
-            "rainfall": 0.0,
-            "humidity": 74.6,
-            "wind": 1.2,
-            "pm10": 30.0,
-            "pm25": 22.0,
-            "so2": 0.004,
-            "no2": 0.008,
-            "co": 0.3,
-            "o3": 0.044
-        },
-        {
-            "date": "2026-05-26",
-            "temp": 23.1,
-            "rainfall": 1.2,
-            "humidity": 77.8,
-            "wind": 1.9,
-            "pm10": 33.0,
-            "pm25": 23.0,
-            "so2": 0.004,
-            "no2": 0.008,
-            "co": 0.3,
-            "o3": 0.044
-        }
-    ]
-)
-
-merged_curr = pd.concat(
-    [merged_curr, test_fixed_data],
-    ignore_index=True
-)
+if merged_curr.empty:
+    st.error("기상 데이터와 대기오염 데이터의 날짜가 일치하지 않습니다.")
+    st.stop()
 
 merged_curr = merged_curr.drop_duplicates(
     subset=["date"],
@@ -506,52 +459,27 @@ merged_curr = merged_curr.drop_duplicates(
 
 merged_curr = merged_curr.sort_values("date").reset_index(drop=True)
 
-if len(merged_curr) >= 1:
-    processed_curr = add_derived_features(merged_curr)
+processed_curr = add_derived_features(merged_curr)
 
-    three_days_display = processed_curr.tail(3).copy()
+three_days_display = processed_curr.tail(3).copy()
 
-    target_row = processed_curr.iloc[-1]
+target_row = processed_curr.iloc[-1]
 
-    tm = target_row["date"]
-    data_time = tm
+tm = target_row["date"].strftime("%Y-%m-%d")
+data_time = tm
 
-    curr_raw = {
-        k: target_row[k]
-        for k in [
-            "temp", "humidity", "rainfall", "wind",
-            "pm10", "pm25", "so2", "no2", "co", "o3"
-        ]
-    }
+curr_raw = {
+    k: target_row[k]
+    for k in [
+        "temp", "humidity", "rainfall", "wind",
+        "pm10", "pm25", "so2", "no2", "co", "o3"
+    ]
+}
 
-    curr_env = {
-        k: target_row[k]
-        for k in FEATURES[:-2]
-    }
-
-else:
-    three_days_display = pd.DataFrame()
-
-    tm = "-"
-    data_time = "-"
-
-    curr_raw = {
-        "temp": 0.0,
-        "humidity": 0.0,
-        "rainfall": 0.0,
-        "wind": 0.0,
-        "pm10": 0.0,
-        "pm25": 0.0,
-        "so2": 0.0,
-        "no2": 0.0,
-        "co": 0.0,
-        "o3": 0.0
-    }
-
-    curr_env = {
-        k: 0.0
-        for k in FEATURES[:-2]
-    }
+curr_env = {
+    k: target_row[k]
+    for k in FEATURES[:-2]
+}
 
 dew_point = curr_raw["temp"] - ((100 - curr_raw["humidity"]) / 5)
 
@@ -575,7 +503,8 @@ heritage_path = "data/processed/yc_heritage_feature.csv"
 if os.path.exists(heritage_path):
     heritage_df = pd.read_csv(heritage_path)
 else:
-    heritage_df = pd.DataFrame()
+    st.error("문화재 특성 데이터 파일을 찾을 수 없습니다.")
+    st.stop()
 
 res_df = pd.DataFrame()
 
@@ -592,7 +521,15 @@ exp_map = {
     "반실외": 2
 }
 
-if ai_model is not None and not heritage_df.empty:
+
+def get_class_probability(model, prob_array, class_label):
+    if class_label in model.classes_:
+        idx = list(model.classes_).index(class_label)
+        return prob_array[idx]
+    return 0
+
+
+if ai_model is not None:
     results = []
 
     for _, row in heritage_df.iterrows():
@@ -620,10 +557,8 @@ if ai_model is not None and not heritage_df.empty:
 
         adj_score = min(curr_weighted_risk * adj + extra, 2.0)
 
-        if len(prob) >= 3:
-            danger_pct = round(min(prob[2] * 100 + extra * 15, 100), 1)
-        else:
-            danger_pct = 0
+        danger_prob = get_class_probability(ai_model, prob, 2)
+        danger_pct = round(min(danger_prob * 100 + extra * 15, 100), 1)
 
         results.append(
             {
@@ -638,39 +573,32 @@ if ai_model is not None and not heritage_df.empty:
 
     res_df = pd.DataFrame(results)
 
-    cnt_safe = len(res_df[res_df["등급"] == 0])
-    cnt_warn = len(res_df[res_df["등급"] == 1])
-    cnt_dang = len(res_df[res_df["등급"] == 2])
+cnt_safe = len(res_df[res_df["등급"] == 0])
+cnt_warn = len(res_df[res_df["등급"] == 1])
+cnt_dang = len(res_df[res_df["등급"] == 2])
 
-    st.session_state["danger_count"] = cnt_dang
-
-else:
-    cnt_safe = 0
-    cnt_warn = 0
-    cnt_dang = 0
+st.session_state["danger_count"] = cnt_dang
 
 # ==========================================================
 # 7. 화면 구성
 # ==========================================================
 
-st.markdown(
-    "<h1 style='font-size:30px;'>🏛 공공 환경 데이터 기반 영천 지역 문화재 훼손 위험 예측</h1>",
-    unsafe_allow_html=True
-)
+st.title("🏛 공공 환경 데이터 기반 영천 지역 문화재 훼손 위험 예측")
+st.caption(f"기준일자: {tm}")
 
 st.divider()
-
-st.markdown("### 🌿 전일 영천 환경 종합 지표 및 분석 요약")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("🌡 평균기온", f"{curr_raw['temp']:.1f} °C")
-    st.metric("💧 평균습도", f"{curr_raw['humidity']:.1f} %")
-    st.metric("🌧 일강수량", f"{curr_raw['rainfall']:.1f} mm")
-    st.metric("💨 평균풍속", f"{curr_raw['wind']:.1f} m/s")
+    st.subheader("🌦 기상 환경")
+    st.metric("평균기온", f"{curr_raw['temp']:.1f} °C")
+    st.metric("평균습도", f"{curr_raw['humidity']:.1f} %")
+    st.metric("일강수량", f"{curr_raw['rainfall']:.1f} mm")
+    st.metric("평균풍속", f"{curr_raw['wind']:.1f} m/s")
 
 with col2:
+    st.subheader("🌫 대기오염")
     st.metric("PM10", f"{curr_raw['pm10']:.0f}")
     st.metric("PM2.5", f"{curr_raw['pm25']:.0f}")
     st.metric("O₃", f"{curr_raw['o3']:.3f}")
@@ -687,42 +615,36 @@ with col3:
 
     curr_label = grade_kor[curr_risk_grade]
 
+    st.subheader("🏛 문화재 현황")
     st.metric("분석 문화재 수", f"{len(heritage_df)}개")
     st.metric("환경 위험지수", f"{curr_weighted_risk:.2f}")
     st.metric("현재 환경 등급", curr_label)
-    st.metric("🚨 고위험 문화재", f"{st.session_state['danger_count']}개")
-
-st.caption(f"기준일자: {tm}")
+    st.metric("고위험 문화재", f"{cnt_dang}개")
 
 # ==========================================================
-# 8. 최근 3일 데이터
+# 8. 최근 환경 데이터
 # ==========================================================
 
 st.divider()
 
-st.markdown("### 📅 최근 3일 분석 데이터")
+st.subheader("📅 최근 환경 데이터")
 
-if not three_days_display.empty:
-    st.dataframe(
-        three_days_display[
-            [
-                "date", "temp", "humidity", "rainfall", "wind",
-                "pm10", "pm25", "so2", "no2", "co", "o3"
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True
-    )
-else:
-    st.warning("최근 3일 데이터를 구성하지 못했습니다.")
+st.dataframe(
+    three_days_display[
+        [
+            "date", "temp", "humidity", "rainfall", "wind",
+            "pm10", "pm25", "so2", "no2", "co", "o3"
+        ]
+    ],
+    use_container_width=True,
+    hide_index=True
+)
 
 # ==========================================================
-# 9. 파생변수 확인
+# 9. 파생변수
 # ==========================================================
 
-st.divider()
-
-with st.expander("🔬 현재 환경 파생변수 상세 보기"):
+with st.expander("🔬 파생변수 상세 보기"):
     d1, d2, d3, d4 = st.columns(4)
 
     d1.metric("이슬점", f"{dew_point:.1f} ℃")
@@ -743,12 +665,10 @@ with st.expander("🔬 현재 환경 파생변수 상세 보기"):
 
 st.divider()
 
-st.markdown("### 🤖 AI 모델 성능 평가")
+st.subheader("🤖 AI 모델 성능 평가")
 
 if report_df is not None:
-    st.metric("Random Forest 모델 정확도", f"{accuracy * 100:.1f}%")
-
-    st.markdown("#### Classification Report")
+    st.metric("Random Forest 정확도", f"{accuracy * 100:.1f}%")
 
     st.dataframe(
         report_df.round(3),
@@ -756,12 +676,12 @@ if report_df is not None:
     )
 
     st.caption(
-        "precision은 예측한 것 중 실제로 맞은 비율, "
+        "precision은 예측한 위험등급 중 실제로 맞은 비율, "
         "recall은 실제 해당 등급 중 모델이 찾아낸 비율, "
         "f1-score는 precision과 recall의 균형 지표입니다."
     )
 else:
-    st.warning("모델 성능 평가 결과를 불러오지 못했습니다.")
+    st.warning("AI 모델 성능 평가 결과가 없습니다.")
 
 # ==========================================================
 # 11. 변수 중요도
@@ -769,13 +689,11 @@ else:
 
 st.divider()
 
-st.markdown("### 📊 AI 변수 중요도 분석")
+st.subheader("📊 AI 변수 중요도")
 
 if importance_df is not None:
-    top_importance = importance_df.head(10)
-
     st.bar_chart(
-        top_importance.set_index("변수")
+        importance_df.head(10).set_index("변수")
     )
 
     st.dataframe(
@@ -786,19 +704,17 @@ if importance_df is not None:
 
     top_feature = importance_df.iloc[0]["변수"]
 
-    st.success(
-        f"현재 모델에서 가장 중요한 변수는 '{top_feature}'입니다."
-    )
+    st.success(f"현재 모델에서 가장 중요한 변수는 '{top_feature}'입니다.")
 else:
-    st.warning("변수 중요도 결과를 불러오지 못했습니다.")
+    st.warning("변수 중요도 결과가 없습니다.")
 
 # ==========================================================
-# 12. 문화재별 위험도 예측 결과
+# 12. 문화재별 위험도 예측
 # ==========================================================
 
 st.divider()
 
-st.markdown("### 📊 AI 위험도 판정 통계")
+st.subheader("📊 문화재별 AI 위험도 예측")
 
 if not res_df.empty:
     s1, s2, s3 = st.columns(3)
