@@ -69,7 +69,10 @@ if data is None:
 temp = to_float(data.get("temperature", 0))
 hum = to_float(data.get("humidity", 0))
 light = to_float(data.get("light_percent", 0))
-dust = to_float(data.get("dust_percent", 0))
+
+pm1 = to_float(data.get("pm1", 0))
+pm25 = to_float(data.get("pm25", 0))
+pm10 = to_float(data.get("pm10", 0))
 
 timestamp = data.get("timestamp", "-")
 device = data.get("device", "-")
@@ -111,7 +114,9 @@ with col3:
     st.metric("☀️ 조도", f"{light:.1f} %")
 
 with col4:
-    st.metric("🌫️ 먼지", f"{dust:.1f} %")
+    st.metric("🌫️ 먼지 pm1", f"{pm1:.1f} %")
+    st.metric("🌫️ 먼지 pm25", f"{pm25:.1f} %")
+    st.metric("🌫️ 먼지 pm10", f"{pm10:.1f} %")
 
 # ========================================
 # 위험도 계산
