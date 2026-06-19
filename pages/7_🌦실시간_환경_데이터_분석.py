@@ -102,7 +102,8 @@ st.caption(f"측정 장치 : {device}")
 # 실시간 센서값
 # ========================================
 
-col1, col2, col3, col4 = st.columns(4)
+# 첫 번째 줄
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric("🌡️ 기온", f"{temp:.1f} ℃")
@@ -113,10 +114,18 @@ with col2:
 with col3:
     st.metric("☀️ 조도", f"{light:.1f} %")
 
+
+# 두 번째 줄
+col4, col5, col6 = st.columns(3)
+
 with col4:
-    st.metric("🌫️ 먼지 pm1", f"{pm1:.1f} %")
-    st.metric("🌫️ 먼지 pm25", f"{pm25:.1f} %")
-    st.metric("🌫️ 먼지 pm10", f"{pm10:.1f} %")
+    st.metric("🌫️ PM1.0", f"{pm1:.1f} ㎍/㎥")
+
+with col5:
+    st.metric("🌫️ PM2.5", f"{pm25:.1f} ㎍/㎥")
+
+with col6:
+    st.metric("🌫️ PM10", f"{pm10:.1f} ㎍/㎥")
 
 # ========================================
 # 위험도 계산
@@ -176,7 +185,9 @@ info = pd.DataFrame(
             "기온",
             "습도",
             "조도",
-            "미세먼지",
+            "PM1.0",
+            "PM2.5",
+            "PM10",
             "장치명"
         ],
         "값": [
@@ -184,7 +195,9 @@ info = pd.DataFrame(
             f"{temp:.1f}℃",
             f"{hum:.1f}%",
             f"{light:.1f}%",
-            f"{dust:.1f}%",
+            f"{pm1:.1f} ㎍/㎥",
+            f"{pm25:.1f} ㎍/㎥",
+            f"{pm10:.1f} ㎍/㎥",
             device
         ]
     }
