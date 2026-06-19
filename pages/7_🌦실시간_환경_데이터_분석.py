@@ -130,7 +130,7 @@ if temp >= 30:
 if hum >= 70:
     risk += 30
 
-if dust >= 50:
+if pm25 >= 50:
     risk += 40
 
 risk = min(risk, 100)
