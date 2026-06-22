@@ -23,7 +23,7 @@ st_autorefresh(
 # Firebase URL
 # ========================================
 
-FIREBASE_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
+FIREBASE_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor/realtime.json"
 
 # ========================================
 # 자동 확인용 HTML
