@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
+import time
 
 # ========================================
 # 페이지 설정
@@ -43,7 +44,11 @@ def to_float(value):
 # ========================================
 
 try:
-    response = requests.get(FIREBASE_REALTIME_URL, timeout=10)
+    response = requests.get(
+                            FIREBASE_REALTIME_URL,
+                            params={"t": time.time()},
+                            timeout=10
+                        )
 
     if response.status_code == 200:
         data = response.json()
