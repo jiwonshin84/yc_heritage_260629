@@ -23,19 +23,8 @@ st_autorefresh(
 # Firebase URL
 # ========================================
 
-FIREBASE_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor/realtime.json"
-
-# ========================================
-# 자동 확인용 HTML
-# 10초마다 Firebase 확인을 위해 페이지 재실행
-# ========================================
-
-#st.markdown(
-#    """
-#    <meta http-equiv="refresh" content="10">
-#    """,
-#    unsafe_allow_html=True
-#)
+FIREBASE_REALTIME_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor/realtime.json"
+FIREBASE_HISTORY_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor/history.json"
 
 # ========================================
 # 값 변환 함수
@@ -48,11 +37,11 @@ def to_float(value):
         return 0.0
 
 # ========================================
-# Firebase 데이터 읽기
+# Firebase 최신 데이터 읽기
 # ========================================
 
 try:
-    response = requests.get(FIREBASE_URL, timeout=10)
+    response = requests.get(FIREBASE_REALTIME_URL, timeout=10)
 
     if response.status_code == 200:
         data = response.json()
@@ -65,9 +54,8 @@ except Exception as e:
     st.stop()
 
 if data is None:
-    st.warning("Firebase에 저장된 데이터가 없습니다.")
+    st.warning("Firebase에 저장된 최신 데이터가 없습니다.")
     st.stop()
-
 
 # ========================================
 # 값 추출
@@ -105,7 +93,6 @@ st.title("🏛️ 문화재 실시간 환경 모니터링")
 if is_new_data:
     st.toast("🆕 새로운 센서 데이터 수신")
 
-
 st.caption(f"마지막 측정 : {timestamp}")
 st.caption(f"측정 장치 : {device}")
 
@@ -113,7 +100,6 @@ st.caption(f"측정 장치 : {device}")
 # 실시간 센서값
 # ========================================
 
-# 첫 번째 줄
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -125,8 +111,6 @@ with col2:
 with col3:
     st.metric("☀️ 조도", f"{light:.1f} %")
 
-
-# 두 번째 줄
 col4, col5, col6 = st.columns(3)
 
 with col4:
@@ -157,10 +141,8 @@ risk = min(risk, 100)
 
 if risk < 30:
     risk_text = "🟢 안전"
-
 elif risk < 60:
     risk_text = "🟡 주의"
-
 else:
     risk_text = "🔴 위험"
 
@@ -184,38 +166,213 @@ st.progress(risk)
 st.markdown(f"### {risk_text} ({risk}점)")
 
 # ========================================
-# 상세 정보
+# 센서 데이터 이력 통계
 # ========================================
 
 st.divider()
 
-info = pd.DataFrame(
-    {
-        "항목": [
-            "측정시각",
-            "기온",
-            "습도",
-            "조도",
-            "PM1.0",
-            "PM2.5",
-            "PM10",
-            "장치명"
-        ],
-        "값": [
-            timestamp,
-            f"{temp:.1f}℃",
-            f"{hum:.1f}%",
-            f"{light:.1f}%",
-            f"{pm1:.1f} ㎍/㎥",
-            f"{pm25:.1f} ㎍/㎥",
-            f"{pm10:.1f} ㎍/㎥",
-            device
-        ]
-    }
-)
+st.subheader("📊 센서 데이터 이력 통계")
 
-st.dataframe(
-    info,
-    use_container_width=True,
-    hide_index=True
-)
+@st.cache_data(ttl=20)
+def load_history_data():
+    try:
+        response = requests.get(FIREBASE_HISTORY_URL, timeout=10)
+
+        if response.status_code != 200:
+            return pd.DataFrame()
+
+        history_data = response.json()
+
+        if history_data is None:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(history_data).T
+        df.reset_index(drop=True, inplace=True)
+
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(
+                df["timestamp"],
+                errors="coerce"
+            )
+
+        numeric_cols = [
+            "temperature",
+            "humidity",
+            "light_percent",
+            "pm1",
+            "pm25",
+            "pm10"
+        ]
+
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col],
+                    errors="coerce"
+                )
+
+        df = df.dropna(subset=["timestamp"])
+        df = df.sort_values("timestamp")
+
+        return df
+
+    except:
+        return pd.DataFrame()
+
+history_df = load_history_data()
+
+if history_df.empty:
+    st.info("아직 sensor/history에 누적된 데이터가 없습니다.")
+
+else:
+    st.caption(f"누적 데이터 수 : {len(history_df)}개")
+
+    # ========================================
+    # 이력 통계 카드
+    # ========================================
+
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+
+    with stat_col1:
+        st.metric(
+            "평균 기온",
+            f"{history_df['temperature'].mean():.1f} ℃"
+        )
+
+    with stat_col2:
+        st.metric(
+            "평균 습도",
+            f"{history_df['humidity'].mean():.1f} %"
+        )
+
+    with stat_col3:
+        st.metric(
+            "평균 조도",
+            f"{history_df['light_percent'].mean():.1f} %"
+        )
+
+    with stat_col4:
+        st.metric(
+            "평균 PM2.5",
+            f"{history_df['pm25'].mean():.1f} ㎍/㎥"
+        )
+
+    # ========================================
+    # 최근 데이터 선택
+    # ========================================
+
+    st.markdown("#### 최근 데이터 변화")
+
+    recent_count = st.slider(
+        "최근 몇 개의 데이터를 볼까요?",
+        min_value=1,
+        max_value=min(300, len(history_df)),
+        value=min(50, len(history_df))
+    )
+
+    recent_df = history_df.tail(recent_count)
+
+    selected_cols = st.multiselect(
+        "그래프로 표시할 항목",
+        [
+            "temperature",
+            "humidity",
+            "light_percent",
+            "pm1",
+            "pm25",
+            "pm10"
+        ],
+        default=[
+            "temperature",
+            "humidity",
+            "pm25"
+        ]
+    )
+
+    if selected_cols:
+        st.line_chart(
+            recent_df,
+            x="timestamp",
+            y=selected_cols
+        )
+
+    # ========================================
+    # 미세먼지 변화 그래프
+    # ========================================
+
+    st.markdown("#### 미세먼지 변화")
+
+    st.line_chart(
+        recent_df,
+        x="timestamp",
+        y=[
+            "pm1",
+            "pm25",
+            "pm10"
+        ]
+    )
+
+    # ========================================
+    # 항목별 기초 통계
+    # ========================================
+
+    st.markdown("#### 항목별 기초 통계")
+
+    stats_cols = [
+        "temperature",
+        "humidity",
+        "light_percent",
+        "pm1",
+        "pm25",
+        "pm10"
+    ]
+
+    stats = history_df[stats_cols].describe().T
+
+    stats = stats[
+        [
+            "count",
+            "mean",
+            "min",
+            "max"
+        ]
+    ]
+
+    stats.columns = [
+        "개수",
+        "평균",
+        "최솟값",
+        "최댓값"
+    ]
+
+    st.dataframe(
+        stats,
+        use_container_width=True
+    )
+
+    # ========================================
+    # 원본 이력 데이터
+    # ========================================
+
+    with st.expander("🧾 원본 이력 데이터 보기"):
+        st.dataframe(
+            history_df.sort_values(
+                "timestamp",
+                ascending=False
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
+
+    # ========================================
+    # CSV 다운로드
+    # ========================================
+
+    csv = history_df.to_csv(index=False).encode("utf-8-sig")
+
+    st.download_button(
+        label="📥 센서 이력 CSV 다운로드",
+        data=csv,
+        file_name="firebase_sensor_history.csv",
+        mime="text/csv"
+    )
