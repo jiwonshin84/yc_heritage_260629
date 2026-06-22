@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import pandas as pd
+from streamlit_autorefresh import st_autorefresh
 
 # ========================================
 # 페이지 설정
@@ -10,6 +11,12 @@ st.set_page_config(
     page_title="문화재 환경 모니터링",
     page_icon="🏛️",
     layout="wide"
+)
+
+# 20초마다 자동 새로고침
+st_autorefresh(
+    interval=20 * 1000,
+    key="sensor_refresh"
 )
 
 # ========================================
@@ -94,6 +101,15 @@ if is_new_data:
 # ========================================
 
 st.title("🏛️ 문화재 실시간 환경 모니터링")
+
+if is_new_data:
+    st.toast("🆕 새로운 센서 데이터 수신")
+'''
+if is_new_data:
+    st.success(
+        f"🆕 새로운 데이터 수신 ({timestamp})"
+    )
+'''
 
 st.caption(f"마지막 측정 : {timestamp}")
 st.caption(f"측정 장치 : {device}")
