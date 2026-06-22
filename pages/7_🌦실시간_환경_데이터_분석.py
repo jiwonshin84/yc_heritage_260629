@@ -136,8 +136,6 @@ st.divider()
 # 센서 데이터 이력 통계
 # ========================================
 
-st.divider()
-
 st.subheader("📊 센서 데이터 이력 통계")
 
 @st.cache_data(ttl=20)
