@@ -99,7 +99,7 @@ try:
     response = requests.get(
         ULTRA_URL,
         params=ultra_params,
-        timeout=5
+        timeout=30
     )
 
     print("초단기실황 응답코드:", response.status_code)
@@ -208,7 +208,7 @@ try:
     air_response = requests.get(
         AIR_URL,
         params=air_params,
-        timeout=5
+        timeout=30
     )
 
     print("대기오염 응답코드:", air_response.status_code)
