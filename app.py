@@ -8,6 +8,259 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
+# ============================================
+# API KEY
+# ============================================
+
+SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
+
+
+def get_latest_base_time():
+
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+
+    target = now.replace(minute=0, second=0, microsecond=0)
+
+    # 초단기실황은 정시+40분 이후 공개
+    if now.minute < 40:
+        target -= timedelta(hours=1)
+
+    api_date = target.strftime("%Y%m%d")
+    api_time = target.strftime("%H00")
+
+    display_date = target.strftime("%Y-%m-%d")
+
+    return api_date, api_time, display_date
+
+
+# ============================================
+# 1. 기상청 초단기실황 최신 자료
+# ============================================
+
+ULTRA_URL = (
+    "https://apis.data.go.kr/"
+    "1360000/VilageFcstInfoService_2.0/"
+    "getUltraSrtNcst"
+)
+
+# 영천시 중심 격자
+NX = "92"
+NY = "106"
+
+# 최근 발표 시각
+api_date, api_time, display_date = get_latest_base_time()
+
+# 기본값
+tm = f"{display_date} {api_time[:2]}:00"
+
+temp = "-"
+humidity = "-"
+
+rainfall = "-"
+wind_speed = "-"
+
+rain_type = "-"
+wind_dir = "-"
+
+# 풍향 변환 함수
+def degree_to_direction(deg):
+
+    try:
+        deg = float(deg)
+
+        dirs = [
+            "북", "북동", "동", "남동",
+            "남", "남서", "서", "북서"
+        ]
+
+        return dirs[
+            round(deg / 45) % 8
+        ]
+
+    except:
+        return "-"
+
+
+try:
+
+    ultra_params = {
+        "serviceKey": SERVICE_KEY,
+        "pageNo": "1",
+        "numOfRows": "1000",
+        "dataType": "JSON",
+
+        "base_date": api_date,
+        "base_time": api_time,
+
+        "nx": NX,
+        "ny": NY
+    }
+
+    response = requests.get(
+        ULTRA_URL,
+        params=ultra_params,
+        timeout=5
+    )
+
+    print("초단기실황 응답코드:", response.status_code)
+
+    data = response.json()
+
+    items = (
+        data["response"]["body"]
+        ["items"]["item"]
+    )
+
+    for item in items:
+
+        category = item["category"]
+        value = item["obsrValue"]
+
+        if category == "T1H":
+            temp = value
+
+        elif category == "REH":
+            humidity = value
+
+        elif category == "RN1":
+            rainfall = value
+
+        elif category == "WSD":
+            wind_speed = value
+
+        elif category == "VEC":
+            wind_dir = degree_to_direction(value)
+
+        elif category == "PTY":
+
+            rain_map = {
+                "0": "없음",
+                "1": "비",
+                "2": "비/눈",
+                "3": "눈",
+                "5": "빗방울",
+                "6": "빗방울눈날림",
+                "7": "눈날림"
+            }
+
+            rain_type = rain_map.get(
+                str(value),
+                str(value)
+            )
+
+    print()
+    print("===== 초단기실황 =====")
+
+    print("관측시각:", tm)
+    print("기온:", temp)
+    print("습도:", humidity)
+    print("강수량:", rainfall)
+    print("풍속:", wind_speed)
+    print("풍향:", wind_dir)
+    print("강수형태:", rain_type)
+
+except Exception as e:
+
+    print("초단기실황 조회 실패")
+    print(e)
+
+# ============================================
+# 2. 대기오염 최신 데이터
+# ============================================
+
+AIR_URL = (
+    "https://apis.data.go.kr/"
+    "B552584/ArpltnInforInqireSvc/"
+    "getCtprvnRltmMesureDnsty"
+)
+
+# 기본값
+pm10 = "-"
+pm25 = "-"
+
+o3 = "-"
+no2 = "-"
+
+co = "-"
+so2 = "-"
+
+data_time = "-"
+
+# ============================================
+# 대기오염 API 요청
+# ============================================
+
+try:
+
+    air_params = {
+        "serviceKey": SERVICE_KEY,
+        "returnType": "json",
+
+        "numOfRows": "100",
+        "pageNo": "1",
+
+        # 경북
+        "sidoName": "경북",
+
+        "ver": "1.0"
+    }
+
+    air_response = requests.get(
+        AIR_URL,
+        params=air_params,
+        timeout=5
+    )
+
+    print("대기오염 응답코드:", air_response.status_code)
+
+    air_data = air_response.json()
+
+    print(air_data)
+
+    items = air_data["response"]["body"]["items"]
+
+    # 영천 측정소 찾기
+    target = None
+
+    for item in items:
+
+        if "영천" in item["stationName"]:
+            target = item
+            break
+
+    if target:
+
+        data_time = target["dataTime"]
+
+        pm10 = target["pm10Value"]
+        pm25 = target["pm25Value"]
+
+        o3 = target["o3Value"]
+        no2 = target["no2Value"]
+
+        co = target["coValue"]
+        so2 = target["so2Value"]
+
+        print()
+        print("===== 최신 대기오염 데이터 =====")
+
+        print("측정시각:", data_time)
+
+        print("PM10:", pm10)
+        print("PM2.5:", pm25)
+
+        print("O3:", o3)
+        print("NO2:", no2)
+
+        print("CO:", co)
+        print("SO2:", so2)
+
+except Exception as e:
+
+    print("대기오염 데이터 조회 실패")
+    print(e)
+
+
 # ==========================================================
 # 페이지 설정
 # ==========================================================
@@ -17,234 +270,12 @@ st.set_page_config(
     layout="wide"
 )
 
-
 # ==========================================================
-# API KEY
+# 데이터 불러오기
 # ==========================================================
-SERVICE_KEY = "feb2bfabd299d5d05e89c7aec49ba7e706112603e76549a92e868bd86ec60323"
-
-
-# ==========================================================
-# 공통 함수
-# ==========================================================
-def get_latest_base_time():
-    now = datetime.now(ZoneInfo("Asia/Seoul"))
-    target = now.replace(minute=0, second=0, microsecond=0)
-
-    # 초단기실황은 정시+40분 이후 공개
-    if now.minute < 40:
-        target -= timedelta(hours=1)
-
-    api_date = target.strftime("%Y%m%d")
-    api_time = target.strftime("%H00")
-    display_date = target.strftime("%Y-%m-%d")
-
-    return api_date, api_time, display_date
-
-
-def degree_to_direction(deg):
-    try:
-        deg = float(deg)
-
-        dirs = [
-            "북", "북동", "동", "남동",
-            "남", "남서", "서", "북서"
-        ]
-
-        return dirs[round(deg / 45) % 8]
-
-    except:
-        return "-"
-
-
-# ==========================================================
-# CSV 데이터 불러오기
-# ==========================================================
-@st.cache_data
-def load_heritage_data():
-    return pd.read_csv("data/processed/yc_heritage_detail_enriched.csv")
-
-
-try:
-    df = load_heritage_data()
-
-except Exception as e:
-    df = pd.DataFrame()
-    st.error("문화재 데이터 파일을 불러오지 못했습니다.")
-    st.caption(str(e))
-
-
-# ==========================================================
-# 기상청 초단기실황 API
-# ==========================================================
-@st.cache_data(ttl=600)
-def get_weather_data():
-    ULTRA_URL = (
-        "https://apis.data.go.kr/"
-        "1360000/VilageFcstInfoService_2.0/"
-        "getUltraSrtNcst"
-    )
-
-    NX = "92"
-    NY = "106"
-
-    api_date, api_time, display_date = get_latest_base_time()
-
-    tm = f"{display_date} {api_time[:2]}:00"
-
-    result = {
-        "tm": tm,
-        "temp": "-",
-        "humidity": "-",
-        "rainfall": "-",
-        "wind_speed": "-",
-        "rain_type": "-",
-        "wind_dir": "-"
-    }
-
-    try:
-        params = {
-            "serviceKey": SERVICE_KEY,
-            "pageNo": "1",
-            "numOfRows": "1000",
-            "dataType": "JSON",
-            "base_date": api_date,
-            "base_time": api_time,
-            "nx": NX,
-            "ny": NY
-        }
-
-        response = requests.get(
-            ULTRA_URL,
-            params=params,
-            timeout=5
-        )
-
-        data = response.json()
-
-        items = data["response"]["body"]["items"]["item"]
-
-        rain_map = {
-            "0": "없음",
-            "1": "비",
-            "2": "비/눈",
-            "3": "눈",
-            "5": "빗방울",
-            "6": "빗방울눈날림",
-            "7": "눈날림"
-        }
-
-        for item in items:
-            category = item["category"]
-            value = item["obsrValue"]
-
-            if category == "T1H":
-                result["temp"] = value
-
-            elif category == "REH":
-                result["humidity"] = value
-
-            elif category == "RN1":
-                result["rainfall"] = value
-
-            elif category == "WSD":
-                result["wind_speed"] = value
-
-            elif category == "VEC":
-                result["wind_dir"] = degree_to_direction(value)
-
-            elif category == "PTY":
-                result["rain_type"] = rain_map.get(str(value), str(value))
-
-    except Exception:
-        pass
-
-    return result
-
-
-# ==========================================================
-# 대기오염 API
-# ==========================================================
-@st.cache_data(ttl=600)
-def get_air_data():
-    AIR_URL = (
-        "https://apis.data.go.kr/"
-        "B552584/ArpltnInforInqireSvc/"
-        "getCtprvnRltmMesureDnsty"
-    )
-
-    result = {
-        "pm10": "-",
-        "pm25": "-",
-        "o3": "-",
-        "no2": "-",
-        "co": "-",
-        "so2": "-",
-        "data_time": "-"
-    }
-
-    try:
-        params = {
-            "serviceKey": SERVICE_KEY,
-            "returnType": "json",
-            "numOfRows": "100",
-            "pageNo": "1",
-            "sidoName": "경북",
-            "ver": "1.0"
-        }
-
-        response = requests.get(
-            AIR_URL,
-            params=params,
-            timeout=5
-        )
-
-        air_data = response.json()
-
-        items = air_data["response"]["body"]["items"]
-
-        target = None
-
-        for item in items:
-            if "영천" in item.get("stationName", ""):
-                target = item
-                break
-
-        if target:
-            result["data_time"] = target.get("dataTime", "-")
-            result["pm10"] = target.get("pm10Value", "-")
-            result["pm25"] = target.get("pm25Value", "-")
-            result["o3"] = target.get("o3Value", "-")
-            result["no2"] = target.get("no2Value", "-")
-            result["co"] = target.get("coValue", "-")
-            result["so2"] = target.get("so2Value", "-")
-
-    except Exception:
-        pass
-
-    return result
-
-
-# ==========================================================
-# API 데이터 호출
-# ==========================================================
-weather = get_weather_data()
-air = get_air_data()
-
-tm = weather["tm"]
-temp = weather["temp"]
-humidity = weather["humidity"]
-rainfall = weather["rainfall"]
-wind_speed = weather["wind_speed"]
-
-pm10 = air["pm10"]
-pm25 = air["pm25"]
-o3 = air["o3"]
-no2 = air["no2"]
-co = air["co"]
-so2 = air["so2"]
-data_time = air["data_time"]
-
+df = pd.read_csv(
+    "data/processed/yc_heritage_detail_enriched.csv"
+)
 
 # ==========================================================
 # 제목
@@ -254,17 +285,17 @@ st.markdown("""
 🏛 공공 환경 데이터 기반 영천 지역 문화재 훼손 위험 예측
 </h1>
 """, unsafe_allow_html=True)
-
 st.markdown("""
-영천 지역 문화재와 공공 환경데이터를 분석하여 문화재 훼손 위험을 사전에 예측하는 데이터 분석 프로젝트입니다.
+영천 지역 문화재와 공공 환경데이터를 분석하여 문화재 훼손 위험을 사전에 예측하는 데이터 분석 프로젝트 입니다.
 """)
 
 st.divider()
 
 
-# ==========================================================
+# ============================================
 # 상단 환경 대시보드
-# ==========================================================
+# ============================================
+
 st.markdown("""
 <h3 style="
     font-size:25px;
@@ -274,12 +305,13 @@ st.markdown("""
 </h3>
 """, unsafe_allow_html=True)
 
+# 메인 영역
 left, center, right = st.columns([1.4, 2.0, 1.0])
 
-
-# ==========================================================
+# ============================================
 # 공통 스타일
-# ==========================================================
+# ============================================
+
 card_style = """
 background-color:#f8f9fa;
 padding:22px;
@@ -317,11 +349,12 @@ position:absolute;
 bottom:20px;
 """
 
-
-# ==========================================================
+# ============================================
 # 1열 : 기상 환경
-# ==========================================================
+# ============================================
+
 with left:
+
     st.markdown(
         f"""
 <div style="{card_style}; position:relative;">
@@ -370,11 +403,12 @@ margin-top:20px;
         unsafe_allow_html=True
     )
 
-
-# ==========================================================
+# ============================================
 # 2열 : 대기오염 현황
-# ==========================================================
+# ============================================
+
 with center:
+
     st.markdown(
         f"""
 <div style="{card_style}; position:relative;">
@@ -393,27 +427,33 @@ margin-top:20px;
 ">
 
 <div>
+
 <div style="{label_style}">PM10</div>
 <div style="{value_style}">{pm10}</div>
 
 <div style="{label_style}">O₃</div>
 <div style="{value_style}">{o3}</div>
+
 </div>
 
 <div>
+
 <div style="{label_style}">PM2.5</div>
 <div style="{value_style}">{pm25}</div>
 
 <div style="{label_style}">NO₂</div>
 <div style="{value_style}">{no2}</div>
+
 </div>
 
 <div>
+
 <div style="{label_style}">CO</div>
 <div style="{value_style}">{co}</div>
 
 <div style="{label_style}">SO₂</div>
 <div style="{value_style}">{so2}</div>
+
 </div>
 
 </div>
@@ -427,11 +467,12 @@ margin-top:20px;
         unsafe_allow_html=True
     )
 
-
-# ==========================================================
+# ============================================
 # 3열 : 문화재 현황
-# ==========================================================
+# ============================================
+
 with right:
+
     st.markdown(
         f"""
 <div style="{card_style}; position:relative;">
@@ -455,23 +496,29 @@ with right:
 <br>
 
 <div style="{label_style}">
-데이터 기준
+
 </div>
 
 <div style="{value_style}">
-영천
-</div>
 
 </div>
 
+</div>
+
+<div>
+- 
+</div>
+                    
 </div>
         """,
         unsafe_allow_html=True
     )
 
-
 st.divider()
 
+# ==========================================================
+# 하단 안내
+# ==========================================================
 st.caption(
     "제6회 학생 SW·AI 인재양성 프로젝트 | 선화여고 - 영천 헤리티지 AI 탐구단"
 )
