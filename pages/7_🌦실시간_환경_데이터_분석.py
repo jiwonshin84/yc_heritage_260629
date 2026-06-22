@@ -15,9 +15,9 @@ st.set_page_config(
 )
 
 # 5초마다 화면 확인
-# Pico는 20초마다 보내고, Streamlit은 5초마다 확인
+# Pico는 20초마다 보내고, Streamlit은 2초마다 확인
 st_autorefresh(
-    interval=5 * 1000,
+    interval=2 * 1000,
     key="sensor_refresh"
 )
 
