@@ -104,12 +104,7 @@ st.title("🏛️ 문화재 실시간 환경 모니터링")
 
 if is_new_data:
     st.toast("🆕 새로운 센서 데이터 수신")
-'''
-if is_new_data:
-    st.success(
-        f"🆕 새로운 데이터 수신 ({timestamp})"
-    )
-'''
+
 
 st.caption(f"마지막 측정 : {timestamp}")
 st.caption(f"측정 장치 : {device}")
