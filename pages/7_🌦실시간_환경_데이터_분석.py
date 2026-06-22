@@ -36,6 +36,7 @@ def to_float(value):
     except:
         return 0.0
 
+
 # ========================================
 # Firebase 최신 데이터 읽기
 # ========================================
@@ -57,6 +58,7 @@ if data is None:
     st.warning("Firebase에 저장된 최신 데이터가 없습니다.")
     st.stop()
 
+
 # ========================================
 # 값 추출
 # ========================================
@@ -72,6 +74,7 @@ pm10 = to_float(data.get("pm10", 0))
 timestamp = data.get("timestamp", "-")
 device = data.get("device", "-")
 
+
 # ========================================
 # 마지막 timestamp 비교
 # ========================================
@@ -84,6 +87,7 @@ is_new_data = timestamp != st.session_state.last_timestamp
 if is_new_data:
     st.session_state.last_timestamp = timestamp
 
+
 # ========================================
 # 제목
 # ========================================
@@ -95,6 +99,7 @@ if is_new_data:
 
 st.caption(f"마지막 측정 : {timestamp}")
 st.caption(f"측정 장치 : {device}")
+
 
 # ========================================
 # 실시간 센서값
@@ -132,11 +137,13 @@ if st.button("🔄 수동 최신 데이터 새로고침"):
 
 st.divider()
 
+
 # ========================================
 # 센서 데이터 이력 통계
 # ========================================
 
 st.subheader("📊 센서 데이터 이력 통계")
+
 
 @st.cache_data(ttl=20)
 def load_history_data():
@@ -184,58 +191,133 @@ def load_history_data():
     except:
         return pd.DataFrame()
 
+
 history_df = load_history_data()
 
 if history_df.empty:
     st.info("아직 sensor/history에 누적된 데이터가 없습니다.")
 
 else:
-    st.caption(f"누적 데이터 수 : {len(history_df)}개")
+    st.caption(f"전체 누적 데이터 수 : {len(history_df)}개")
+
+    # 날짜 컬럼 생성
+    history_df["date"] = history_df["timestamp"].dt.date
+
+    min_date = history_df["date"].min()
+    max_date = history_df["date"].max()
 
     # ========================================
-    # 이력 통계 카드
+    # 기간 선택
     # ========================================
+
+    st.markdown("#### 📅 조회 기간 선택")
+
+    date_col1, date_col2 = st.columns(2)
+
+    with date_col1:
+        start_date = st.date_input(
+            "시작 날짜",
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date
+        )
+
+    with date_col2:
+        end_date = st.date_input(
+            "종료 날짜",
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date
+        )
+
+    if start_date > end_date:
+        st.error("시작 날짜가 종료 날짜보다 늦을 수 없습니다.")
+        st.stop()
+
+    filtered_df = history_df[
+        (history_df["date"] >= start_date)
+        &
+        (history_df["date"] <= end_date)
+    ]
+
+    if filtered_df.empty:
+        st.warning("선택한 기간에 해당하는 데이터가 없습니다.")
+        st.stop()
+
+    st.caption(
+        f"선택 기간 데이터 수 : {len(filtered_df)}개 "
+        f"({start_date} ~ {end_date})"
+    )
+
+    # ========================================
+    # 선택 기간 통계 카드
+    # ========================================
+
+    st.markdown("#### 선택 기간 평균값")
 
     stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
 
     with stat_col1:
         st.metric(
             "평균 기온",
-            f"{history_df['temperature'].mean():.1f} ℃"
+            f"{filtered_df['temperature'].mean():.1f} ℃"
         )
 
     with stat_col2:
         st.metric(
             "평균 습도",
-            f"{history_df['humidity'].mean():.1f} %"
+            f"{filtered_df['humidity'].mean():.1f} %"
         )
 
     with stat_col3:
         st.metric(
             "평균 조도",
-            f"{history_df['light_percent'].mean():.1f} %"
+            f"{filtered_df['light_percent'].mean():.1f} %"
         )
 
     with stat_col4:
         st.metric(
             "평균 PM2.5",
-            f"{history_df['pm25'].mean():.1f} ㎍/㎥"
+            f"{filtered_df['pm25'].mean():.1f} ㎍/㎥"
         )
 
     # ========================================
-    # 최근 데이터 선택
+    # 최대 / 최소 요약
     # ========================================
 
-    st.markdown("#### 최근 데이터 변화")
+    st.markdown("#### 선택 기간 최대·최소값")
 
-    recent_count = st.slider(
-        "최근 몇 개의 데이터를 볼까요?",
-        min_value=1,
-        max_value=min(300, len(history_df)),
-        value=min(50, len(history_df))
-    )
+    max_col1, max_col2, max_col3, max_col4 = st.columns(4)
 
-    recent_df = history_df.tail(recent_count)
+    with max_col1:
+        st.metric(
+            "최고 기온",
+            f"{filtered_df['temperature'].max():.1f} ℃"
+        )
+
+    with max_col2:
+        st.metric(
+            "최고 습도",
+            f"{filtered_df['humidity'].max():.1f} %"
+        )
+
+    with max_col3:
+        st.metric(
+            "최고 PM2.5",
+            f"{filtered_df['pm25'].max():.1f} ㎍/㎥"
+        )
+
+    with max_col4:
+        st.metric(
+            "최고 PM10",
+            f"{filtered_df['pm10'].max():.1f} ㎍/㎥"
+        )
+
+    # ========================================
+    # 그래프 선택
+    # ========================================
+
+    st.markdown("#### 선택 기간 데이터 변화")
 
     selected_cols = st.multiselect(
         "그래프로 표시할 항목",
@@ -256,7 +338,7 @@ else:
 
     if selected_cols:
         st.line_chart(
-            recent_df,
+            filtered_df,
             x="timestamp",
             y=selected_cols
         )
@@ -268,7 +350,7 @@ else:
     st.markdown("#### 미세먼지 변화")
 
     st.line_chart(
-        recent_df,
+        filtered_df,
         x="timestamp",
         y=[
             "pm1",
@@ -292,7 +374,7 @@ else:
         "pm10"
     ]
 
-    stats = history_df[stats_cols].describe().T
+    stats = filtered_df[stats_cols].describe().T
 
     stats = stats[
         [
@@ -316,12 +398,59 @@ else:
     )
 
     # ========================================
+    # 일별 평균 그래프
+    # ========================================
+
+    st.markdown("#### 일별 평균 변화")
+
+    daily_df = (
+        filtered_df
+        .groupby("date")[
+            [
+                "temperature",
+                "humidity",
+                "light_percent",
+                "pm1",
+                "pm25",
+                "pm10"
+            ]
+        ]
+        .mean()
+        .reset_index()
+    )
+
+    daily_selected_cols = st.multiselect(
+        "일별 평균으로 표시할 항목",
+        [
+            "temperature",
+            "humidity",
+            "light_percent",
+            "pm1",
+            "pm25",
+            "pm10"
+        ],
+        default=[
+            "temperature",
+            "humidity",
+            "pm25"
+        ],
+        key="daily_chart_select"
+    )
+
+    if daily_selected_cols:
+        st.line_chart(
+            daily_df,
+            x="date",
+            y=daily_selected_cols
+        )
+
+    # ========================================
     # 원본 이력 데이터
     # ========================================
 
-    with st.expander("🧾 원본 이력 데이터 보기"):
+    with st.expander("🧾 선택 기간 원본 데이터 보기"):
         st.dataframe(
-            history_df.sort_values(
+            filtered_df.sort_values(
                 "timestamp",
                 ascending=False
             ),
@@ -333,11 +462,11 @@ else:
     # CSV 다운로드
     # ========================================
 
-    csv = history_df.to_csv(index=False).encode("utf-8-sig")
+    csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
 
     st.download_button(
-        label="📥 센서 이력 CSV 다운로드",
+        label="📥 선택 기간 센서 이력 CSV 다운로드",
         data=csv,
-        file_name="firebase_sensor_history.csv",
+        file_name="firebase_sensor_history_filtered.csv",
         mime="text/csv"
     )
