@@ -39,7 +39,7 @@ def to_float(value):
 
 
 # ========================================
-# Firebase 실시간 장치 데이터 읽기
+# 실시간 장치 데이터 읽기
 # ========================================
 
 @st.cache_data(ttl=2)
@@ -72,7 +72,7 @@ def load_realtime_devices():
 
 
 # ========================================
-# Firebase 이력 데이터 읽기
+# 이력 데이터 읽기
 # ========================================
 
 @st.cache_data(ttl=20)
@@ -130,8 +130,7 @@ def load_history_data():
 # 제목
 # ========================================
 
-st.title("🏛️ 문화재 실시간 환경 모니터링")
-st.caption("Pico W 장치별 실시간 센서 데이터")
+st.title("🏛️ 문화재 실시간 환경 모니터링 (20초마다 센서 측정)")
 
 # ========================================
 # 실시간 데이터 표시
@@ -141,7 +140,32 @@ realtime_devices = load_realtime_devices()
 
 if not realtime_devices:
     st.warning("Firebase에 저장된 실시간 장치 데이터가 없습니다.")
+
 else:
+    # 장치별 마지막 timestamp 저장용
+    if "last_timestamps" not in st.session_state:
+        st.session_state.last_timestamps = {}
+
+    new_devices = []
+
+    for device_key, data in realtime_devices.items():
+        timestamp = data.get("timestamp", "-")
+        device_name = data.get("device", device_key)
+
+        old_timestamp = st.session_state.last_timestamps.get(device_key)
+
+        if old_timestamp is not None and old_timestamp != timestamp:
+            new_devices.append(device_name)
+
+        st.session_state.last_timestamps[device_key] = timestamp
+
+    if len(new_devices) > 0:
+        st.success(
+            f"🆕 {', '.join(new_devices)} 데이터 업데이트"
+        )
+
+    st.caption("장치별 최신 측정값")
+
     for device_key, data in sorted(realtime_devices.items()):
 
         temp = to_float(data.get("temperature", 0))
@@ -197,7 +221,6 @@ if history_df.empty:
 else:
     st.caption(f"전체 누적 데이터 수 : {len(history_df)}개")
 
-    # 날짜 컬럼 생성
     history_df["date"] = history_df["timestamp"].dt.date
 
     min_date = history_df["date"].min()
@@ -296,7 +319,7 @@ else:
         )
 
     # ========================================
-    # 최대값
+    # 선택 기간 최대값
     # ========================================
 
     st.markdown("#### 선택 기간 최대값")
@@ -328,7 +351,7 @@ else:
         )
 
     # ========================================
-    # 그래프 선택
+    # 선택 기간 데이터 변화
     # ========================================
 
     st.markdown("#### 선택 기간 데이터 변화")
