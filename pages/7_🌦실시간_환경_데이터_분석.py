@@ -286,10 +286,29 @@ else:
         st.metric("최고 기압", f"{filtered_df['pressure'].max():.1f} hPa")
 
     with max_col4:
-        st.metric("최고 PM2.5", f"{filtered_df['pm25'].max():.1f} ㎍/㎥")
+        st.metric("최고 조도", f"{filtered_df['light'].max():.1f} lux")
 
     with max_col5:
-        st.metric("최고 PM10", f"{filtered_df['pm10'].max():.1f} ㎍/㎥")
+        st.metric("최고 PM2.5", f"{filtered_df['pm25'].max():.1f} ㎍/㎥")
+
+    st.markdown("#### 선택 기간 최소값")
+
+    max_col1, max_col2, max_col3, max_col4, max_col5 = st.columns(5)
+
+    with max_col1:
+        st.metric("최저 기온", f"{filtered_df['temperature'].min():.1f} ℃")
+
+    with max_col2:
+        st.metric("최저 습도", f"{filtered_df['humidity'].min():.1f} %")
+
+    with max_col3:
+        st.metric("최저 기압", f"{filtered_df['pressure'].min():.1f} hPa")
+
+    with max_col4:
+        st.metric("최저 조도", f"{filtered_df['light'].min():.1f} lux")
+
+    with max_col5:
+        st.metric("최저 PM2.5", f"{filtered_df['pm25'].min():.1f} ㎍/㎥")
 
     st.markdown("#### 선택 기간 데이터 변화")
 
