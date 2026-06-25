@@ -178,6 +178,9 @@ else:
         with col7:
             st.metric("🌫️ PM10", f"{pm10:.1f} ㎍/㎥")
 
+        with col8:
+            st.metric(" ")
+
         st.divider()
 
 
