@@ -167,7 +167,7 @@ else:
         with col4:
             st.metric("☀️ 조도", f"{light:.1f} lux")
 
-        col5, col6, col7 = st.columns(3)
+        col5, col6, col7, col8 = st.columns(3)
 
         with col5:
             st.metric("🌫️ PM1.0", f"{pm1:.1f} ㎍/㎥")
@@ -177,6 +177,9 @@ else:
 
         with col7:
             st.metric("🌫️ PM10", f"{pm10:.1f} ㎍/㎥")
+
+        with col8:
+            st.metric(" ")
 
         with col8:
             st.metric(" ")
