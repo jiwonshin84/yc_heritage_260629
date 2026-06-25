@@ -104,7 +104,7 @@ def load_history_data():
         numeric_cols = [
             "temperature",
             "humidity",
-            "light_percent",
+            "light",
             "pm1",
             "pm25",
             "pm10"
@@ -170,7 +170,7 @@ else:
 
         temp = to_float(data.get("temperature", 0))
         hum = to_float(data.get("humidity", 0))
-        light = to_float(data.get("light_percent", 0))
+        light = to_float(data.get("light", 0))
 
         pm1 = to_float(data.get("pm1", 0))
         pm25 = to_float(data.get("pm25", 0))
@@ -309,7 +309,7 @@ else:
     with stat_col3:
         st.metric(
             "평균 조도",
-            f"{filtered_df['light_percent'].mean():.1f} %"
+            f"{filtered_df['light'].mean():.1f} lux"
         )
 
     with stat_col4:
@@ -361,7 +361,7 @@ else:
         [
             "temperature",
             "humidity",
-            "light_percent",
+            "light",
             "pm1",
             "pm25",
             "pm10"
@@ -393,7 +393,7 @@ else:
                 [
                     "temperature",
                     "humidity",
-                    "light_percent",
+                    "light",
                     "pm1",
                     "pm25",
                     "pm10"
@@ -418,7 +418,7 @@ else:
     stats_cols = [
         "temperature",
         "humidity",
-        "light_percent",
+        "light",
         "pm1",
         "pm25",
         "pm10"
@@ -459,7 +459,7 @@ else:
             [
                 "temperature",
                 "humidity",
-                "light_percent",
+                "light",
                 "pm1",
                 "pm25",
                 "pm10"
@@ -474,7 +474,7 @@ else:
         [
             "temperature",
             "humidity",
-            "light_percent",
+            "light",
             "pm1",
             "pm25",
             "pm10"
