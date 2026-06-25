@@ -4,32 +4,20 @@ import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 import time
 
-# ========================================
-# 페이지 설정
-# ========================================
-
 st.set_page_config(
     page_title="문화재 환경 모니터링",
     page_icon="🏛️",
     layout="wide"
 )
 
-# 2초마다 화면 확인
 st_autorefresh(
     interval=2 * 1000,
     key="sensor_refresh"
 )
 
-# ========================================
-# Firebase URL
-# ========================================
-
 FIREBASE_SENSOR_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
 FIREBASE_HISTORY_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor/history.json"
 
-# ========================================
-# 값 변환 함수
-# ========================================
 
 def to_float(value):
     try:
@@ -37,10 +25,6 @@ def to_float(value):
     except:
         return 0.0
 
-
-# ========================================
-# 실시간 장치 데이터 읽기
-# ========================================
 
 @st.cache_data(ttl=2)
 def load_realtime_devices():
@@ -71,10 +55,6 @@ def load_realtime_devices():
         return {}
 
 
-# ========================================
-# 이력 데이터 읽기
-# ========================================
-
 @st.cache_data(ttl=20)
 def load_history_data():
     try:
@@ -104,6 +84,7 @@ def load_history_data():
         numeric_cols = [
             "temperature",
             "humidity",
+            "pressure",
             "light",
             "pm1",
             "pm25",
@@ -126,15 +107,7 @@ def load_history_data():
         return pd.DataFrame()
 
 
-# ========================================
-# 제목
-# ========================================
-
 st.title("🏛️ 문화재 실시간 환경 모니터링 (20초마다 센서 측정)")
-
-# ========================================
-# 실시간 데이터 표시
-# ========================================
 
 realtime_devices = load_realtime_devices()
 
@@ -142,7 +115,6 @@ if not realtime_devices:
     st.warning("Firebase에 저장된 실시간 장치 데이터가 없습니다.")
 
 else:
-    # 장치별 마지막 timestamp 저장용
     if "last_timestamps" not in st.session_state:
         st.session_state.last_timestamps = {}
 
@@ -160,9 +132,7 @@ else:
         st.session_state.last_timestamps[device_key] = timestamp
 
     if len(new_devices) > 0:
-        st.success(
-            f"🆕 {', '.join(new_devices)} 데이터 업데이트"
-        )
+        st.success(f"🆕 {', '.join(new_devices)} 데이터 업데이트")
 
     st.caption("장치별 최신 측정값")
 
@@ -170,6 +140,7 @@ else:
 
         temp = to_float(data.get("temperature", 0))
         hum = to_float(data.get("humidity", 0))
+        pressure = to_float(data.get("pressure", 0))
         light = to_float(data.get("light", 0))
 
         pm1 = to_float(data.get("pm1", 0))
@@ -182,7 +153,7 @@ else:
         st.subheader(f"📡 {device}")
         st.caption(f"마지막 측정 : {timestamp}")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             st.metric("🌡️ 기온", f"{temp:.1f} ℃")
@@ -191,25 +162,24 @@ else:
             st.metric("💧 습도", f"{hum:.1f} %")
 
         with col3:
-            st.metric("☀️ 조도", f"{light:.1f} lux")
-
-        col4, col5, col6 = st.columns(3)
+            st.metric("🌬️ 기압", f"{pressure:.1f} hPa")
 
         with col4:
-            st.metric("🌫️ PM1.0", f"{pm1:.1f} ㎍/㎥")
+            st.metric("☀️ 조도", f"{light:.1f} lux")
+
+        col5, col6, col7 = st.columns(3)
 
         with col5:
-            st.metric("🌫️ PM2.5", f"{pm25:.1f} ㎍/㎥")
+            st.metric("🌫️ PM1.0", f"{pm1:.1f} ㎍/㎥")
 
         with col6:
+            st.metric("🌫️ PM2.5", f"{pm25:.1f} ㎍/㎥")
+
+        with col7:
             st.metric("🌫️ PM10", f"{pm10:.1f} ㎍/㎥")
 
         st.divider()
 
-
-# ========================================
-# 센서 데이터 이력 통계
-# ========================================
 
 st.subheader("📊 센서 데이터 이력 통계")
 
@@ -226,10 +196,6 @@ else:
     min_date = history_df["date"].min()
     max_date = history_df["date"].max()
 
-    # ========================================
-    # 장치 선택
-    # ========================================
-
     if "device" in history_df.columns:
         device_list = sorted(history_df["device"].dropna().unique())
 
@@ -242,10 +208,6 @@ else:
         history_df = history_df[
             history_df["device"].isin(selected_devices)
         ]
-
-    # ========================================
-    # 기간 선택
-    # ========================================
 
     st.markdown("#### 📅 조회 기간 선택")
 
@@ -286,89 +248,63 @@ else:
         f"({start_date} ~ {end_date})"
     )
 
-    # ========================================
-    # 선택 기간 평균값
-    # ========================================
-
     st.markdown("#### 선택 기간 평균값")
 
-    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    stat_col1, stat_col2, stat_col3, stat_col4, stat_col5 = st.columns(5)
 
     with stat_col1:
-        st.metric(
-            "평균 기온",
-            f"{filtered_df['temperature'].mean():.1f} ℃"
-        )
+        st.metric("평균 기온", f"{filtered_df['temperature'].mean():.1f} ℃")
 
     with stat_col2:
-        st.metric(
-            "평균 습도",
-            f"{filtered_df['humidity'].mean():.1f} %"
-        )
+        st.metric("평균 습도", f"{filtered_df['humidity'].mean():.1f} %")
 
     with stat_col3:
-        st.metric(
-            "평균 조도",
-            f"{filtered_df['light'].mean():.1f} lux"
-        )
+        st.metric("평균 기압", f"{filtered_df['pressure'].mean():.1f} hPa")
 
     with stat_col4:
-        st.metric(
-            "평균 PM2.5",
-            f"{filtered_df['pm25'].mean():.1f} ㎍/㎥"
-        )
+        st.metric("평균 조도", f"{filtered_df['light'].mean():.1f} lux")
 
-    # ========================================
-    # 선택 기간 최대값
-    # ========================================
+    with stat_col5:
+        st.metric("평균 PM2.5", f"{filtered_df['pm25'].mean():.1f} ㎍/㎥")
 
     st.markdown("#### 선택 기간 최대값")
 
-    max_col1, max_col2, max_col3, max_col4 = st.columns(4)
+    max_col1, max_col2, max_col3, max_col4, max_col5 = st.columns(5)
 
     with max_col1:
-        st.metric(
-            "최고 기온",
-            f"{filtered_df['temperature'].max():.1f} ℃"
-        )
+        st.metric("최고 기온", f"{filtered_df['temperature'].max():.1f} ℃")
 
     with max_col2:
-        st.metric(
-            "최고 습도",
-            f"{filtered_df['humidity'].max():.1f} %"
-        )
+        st.metric("최고 습도", f"{filtered_df['humidity'].max():.1f} %")
 
     with max_col3:
-        st.metric(
-            "최고 PM2.5",
-            f"{filtered_df['pm25'].max():.1f} ㎍/㎥"
-        )
+        st.metric("최고 기압", f"{filtered_df['pressure'].max():.1f} hPa")
 
     with max_col4:
-        st.metric(
-            "최고 PM10",
-            f"{filtered_df['pm10'].max():.1f} ㎍/㎥"
-        )
+        st.metric("최고 PM2.5", f"{filtered_df['pm25'].max():.1f} ㎍/㎥")
 
-    # ========================================
-    # 선택 기간 데이터 변화
-    # ========================================
+    with max_col5:
+        st.metric("최고 PM10", f"{filtered_df['pm10'].max():.1f} ㎍/㎥")
 
     st.markdown("#### 선택 기간 데이터 변화")
 
+    chart_cols = [
+        "temperature",
+        "humidity",
+        "pressure",
+        "light",
+        "pm1",
+        "pm25",
+        "pm10"
+    ]
+
     selected_cols = st.multiselect(
         "그래프로 표시할 항목",
-        [
-            "temperature",
-            "humidity",
-            "light",
-            "pm1",
-            "pm25",
-            "pm10"
-        ],
+        chart_cols,
         default=[
             "temperature",
             "humidity",
+            "pressure",
             "pm25"
         ]
     )
@@ -380,10 +316,6 @@ else:
             y=selected_cols
         )
 
-    # ========================================
-    # 장치별 평균 비교
-    # ========================================
-
     if "device" in filtered_df.columns:
         st.markdown("#### 장치별 평균 비교")
 
@@ -393,6 +325,7 @@ else:
                 [
                     "temperature",
                     "humidity",
+                    "pressure",
                     "light",
                     "pm1",
                     "pm25",
@@ -409,15 +342,12 @@ else:
             hide_index=True
         )
 
-    # ========================================
-    # 항목별 기초 통계
-    # ========================================
-
     st.markdown("#### 항목별 기초 통계")
 
     stats_cols = [
         "temperature",
         "humidity",
+        "pressure",
         "light",
         "pm1",
         "pm25",
@@ -447,10 +377,6 @@ else:
         use_container_width=True
     )
 
-    # ========================================
-    # 일별 평균 그래프
-    # ========================================
-
     st.markdown("#### 일별 평균 변화")
 
     daily_df = (
@@ -459,6 +385,7 @@ else:
             [
                 "temperature",
                 "humidity",
+                "pressure",
                 "light",
                 "pm1",
                 "pm25",
@@ -471,17 +398,11 @@ else:
 
     daily_selected_cols = st.multiselect(
         "일별 평균으로 표시할 항목",
-        [
-            "temperature",
-            "humidity",
-            "light",
-            "pm1",
-            "pm25",
-            "pm10"
-        ],
+        chart_cols,
         default=[
             "temperature",
             "humidity",
+            "pressure",
             "pm25"
         ],
         key="daily_chart_select"
@@ -494,10 +415,6 @@ else:
             y=daily_selected_cols
         )
 
-    # ========================================
-    # 원본 이력 데이터
-    # ========================================
-
     with st.expander("🧾 선택 기간 원본 데이터 보기"):
         st.dataframe(
             filtered_df.sort_values(
@@ -507,10 +424,6 @@ else:
             use_container_width=True,
             hide_index=True
         )
-
-    # ========================================
-    # CSV 다운로드
-    # ========================================
 
     csv = filtered_df.to_csv(index=False).encode("utf-8-sig")
 
