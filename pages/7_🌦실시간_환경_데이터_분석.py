@@ -92,11 +92,13 @@ def load_history_data():
         ]
 
         for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(
-                    df[col],
-                    errors="coerce"
-                )
+            if col not in df.columns:
+                df[col] = 0
+
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            ).fillna(0)
 
         df = df.dropna(subset=["timestamp"])
         df = df.sort_values("timestamp")
@@ -179,10 +181,7 @@ else:
             st.metric("🌫️ PM10", f"{pm10:.1f} ㎍/㎥")
 
         with col8:
-            st.metric(" ")
-
-        with col8:
-            st.metric(" ")
+            st.empty()
 
         st.divider()
 
