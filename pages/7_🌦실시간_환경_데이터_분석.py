@@ -191,7 +191,7 @@ else:
             st.metric("💧 습도", f"{hum:.1f} %")
 
         with col3:
-            st.metric("☀️ 조도", f"{light:.1f} %")
+            st.metric("☀️ 조도", f"{light:.1f} lux")
 
         col4, col5, col6 = st.columns(3)
 
