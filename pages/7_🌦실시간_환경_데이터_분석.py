@@ -356,51 +356,33 @@ else:
             <div class="time-text">마지막 측정 : {timestamp}</div>
         """, unsafe_allow_html=True)
 
-        col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.markdown(
-                value_display("🌡️ 기온", temp, "℃"),
-                unsafe_allow_html=True
-            )
+            st.metric("🌡️ 기온", f"{temp:.1f} ℃")
 
         with col2:
-            st.markdown(
-                value_display("💧 습도", hum, "%"),
-                unsafe_allow_html=True
-            )
+            st.metric("💧 습도", f"{hum:.1f} %")
 
         with col3:
-            st.markdown(
-                value_display("🌬️ 기압", pressure, "hPa", zero_check=True),
-                unsafe_allow_html=True
-            )
+            st.metric("🌬️ 기압", f"{pressure:.1f} hPa")
 
         with col4:
-            st.markdown(
-                value_display("☀️ 조도", light, "lux", zero_check=True),
-                unsafe_allow_html=True
-            )
+            st.metric("☀️ 조도", f"{light:.1f} lux")
 
-        col5, col6, col7 = st.columns(3)
+        col5, col6, col7, col8 = st.columns(4)
 
         with col5:
-            st.markdown(
-                value_display("🌫️ PM1.0", pm1, "㎍/㎥"),
-                unsafe_allow_html=True
-            )
+            st.metric("🌫️ PM1.0", f"{pm1:.1f} ㎍/㎥")
 
         with col6:
-            st.markdown(
-                value_display("🌫️ PM2.5", pm25, "㎍/㎥"),
-                unsafe_allow_html=True
-            )
+            st.metric("🌫️ PM2.5", f"{pm25:.1f} ㎍/㎥")
 
         with col7:
-            st.markdown(
-                value_display("🌫️ PM10", pm10, "㎍/㎥"),
-                unsafe_allow_html=True
-            )
+            st.metric("🌫️ PM10", f"{pm10:.1f} ㎍/㎥")
+
+        with col8:
+            st.empty()
 
         st.markdown("</div>", unsafe_allow_html=True)
 
