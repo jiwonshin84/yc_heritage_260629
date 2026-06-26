@@ -16,133 +16,9 @@ st_autorefresh(
     key="sensor_refresh"
 )
 
-# ========================================
-# Firebase URL
-# ========================================
-
 FIREBASE_SENSOR_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
 FIREBASE_HISTORY_URL = "https://heritage-project-4a361-default-rtdb.asia-southeast1.firebasedatabase.app/sensor/history.json"
 
-
-# ========================================
-# CSS 디자인
-# ========================================
-
-st.markdown("""
-<style>
-.main-title {
-    font-size: 38px;
-    font-weight: 800;
-    margin-bottom: 5px;
-}
-
-.sub-title {
-    font-size: 20px;
-    color: #555;
-    font-weight: 600;
-    margin-bottom: 30px;
-}
-
-.device-card {
-    background-color: #ffffff;
-    padding: 26px;
-    border-radius: 20px;
-    margin-bottom: 32px;
-    border-left: 9px solid #2ecc71;
-    box-shadow: 0 5px 18px rgba(0,0,0,0.08);
-}
-
-.device-card-warning {
-    border-left: 9px solid #f39c12;
-}
-
-.device-card-error {
-    border-left: 9px solid #e74c3c;
-}
-
-.device-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.device-name {
-    font-size: 27px;
-    font-weight: 800;
-}
-
-.status-normal {
-    background-color: #eafaf1;
-    color: #1e8449;
-    padding: 7px 14px;
-    border-radius: 20px;
-    font-weight: 700;
-}
-
-.status-warning {
-    background-color: #fff3cd;
-    color: #b9770e;
-    padding: 7px 14px;
-    border-radius: 20px;
-    font-weight: 700;
-}
-
-.status-error {
-    background-color: #fdecea;
-    color: #c0392b;
-    padding: 7px 14px;
-    border-radius: 20px;
-    font-weight: 700;
-}
-
-.time-text {
-    color: #777;
-    font-size: 14px;
-    margin-top: 8px;
-    margin-bottom: 18px;
-}
-
-.sensor-box {
-    background-color: #f8f9fb;
-    padding: 18px;
-    border-radius: 16px;
-    min-height: 120px;
-    border: 1px solid #eeeeee;
-}
-
-.sensor-label {
-    font-size: 15px;
-    color: #666;
-    font-weight: 700;
-}
-
-.sensor-value {
-    font-size: 30px;
-    font-weight: 800;
-    margin-top: 8px;
-    color: #2f3542;
-}
-
-.sensor-warning {
-    font-size: 26px;
-    font-weight: 800;
-    margin-top: 8px;
-    color: #e74c3c;
-}
-
-.section-title {
-    font-size: 25px;
-    font-weight: 800;
-    margin-top: 30px;
-    margin-bottom: 15px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# ========================================
-# 함수
-# ========================================
 
 def to_float(value):
     try:
@@ -162,36 +38,25 @@ def get_device_status(timestamp):
     dt = parse_time(timestamp)
 
     if dt is None:
-        return "error", "시간 오류"
+        return "⚠️ 시간 오류"
 
     now = datetime.now()
     diff = now - dt
 
     if diff > timedelta(minutes=10):
-        return "error", "수신 지연"
+        return "🔴 수신 지연"
 
     elif diff > timedelta(minutes=2):
-        return "warning", "확인 필요"
+        return "🟠 확인 필요"
 
     else:
-        return "normal", "정상 수신"
+        return "🟢 정상 수신"
 
 
-def value_display(label, value, unit, zero_check=False):
+def metric_value(value, unit, zero_check=False):
     if zero_check and value == 0:
-        return f"""
-        <div class="sensor-box">
-            <div class="sensor-label">{label}</div>
-            <div class="sensor-warning">센서 확인</div>
-        </div>
-        """
-
-    return f"""
-    <div class="sensor-box">
-        <div class="sensor-label">{label}</div>
-        <div class="sensor-value">{value:.1f} {unit}</div>
-    </div>
-    """
+        return "센서 확인"
+    return f"{value:.1f} {unit}"
 
 
 @st.cache_data(ttl=2)
@@ -277,26 +142,10 @@ def load_history_data():
         return pd.DataFrame()
 
 
-# ========================================
-# 화면 제목
-# ========================================
-
-st.markdown(
-    '<div class="main-title">🏛️ 문화재 실시간 환경 모니터링</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="sub-title">BME280 온습도·기압 센서 / BH1750 조도 센서 / PMS7003 미세먼지 센서 · 20초마다 측정</div>',
-    unsafe_allow_html=True
-)
+st.title("🏛️ 문화재 실시간 환경 모니터링 (20초마다 센서 측정)")
+st.subheader("온습도기압 센서 BME280 / 조도 센서 BH1750 / 미세먼지 센서 PMS7003")
 
 realtime_devices = load_realtime_devices()
-
-
-# ========================================
-# 실시간 장치 데이터
-# ========================================
 
 if not realtime_devices:
     st.warning("Firebase에 저장된 실시간 장치 데이터가 없습니다.")
@@ -321,6 +170,8 @@ else:
     if len(new_devices) > 0:
         st.success(f"🆕 {', '.join(new_devices)} 데이터 업데이트")
 
+    st.divider()
+
     for device_key, data in sorted(realtime_devices.items()):
 
         temp = to_float(data.get("temperature", 0))
@@ -334,29 +185,19 @@ else:
 
         timestamp = data.get("timestamp", "-")
         device = data.get("device", device_key)
+        status = get_device_status(timestamp)
 
-        status_type, status_text = get_device_status(timestamp)
+        title_col1, title_col2 = st.columns([3, 1])
 
-        if status_type == "normal":
-            card_class = "device-card"
-            status_class = "status-normal"
-        elif status_type == "warning":
-            card_class = "device-card device-card-warning"
-            status_class = "status-warning"
-        else:
-            card_class = "device-card device-card-error"
-            status_class = "status-error"
+        with title_col1:
+            st.subheader(f"📡 {device}")
 
-        st.markdown(f"""
-        <div class="{card_class}">
-            <div class="device-header">
-                <div class="device-name">📡 {device}</div>
-                <div class="{status_class}">{status_text}</div>
-            </div>
-            <div class="time-text">마지막 측정 : {timestamp}</div>
-        """, unsafe_allow_html=True)
+        with title_col2:
+            st.markdown(f"### {status}")
 
-                col1, col2, col3, col4 = st.columns(4)
+        st.caption(f"마지막 측정 : {timestamp}")
+
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             st.metric("🌡️ 기온", f"{temp:.1f} ℃")
@@ -365,10 +206,16 @@ else:
             st.metric("💧 습도", f"{hum:.1f} %")
 
         with col3:
-            st.metric("🌬️ 기압", f"{pressure:.1f} hPa")
+            st.metric(
+                "🌬️ 기압",
+                metric_value(pressure, "hPa", zero_check=True)
+            )
 
         with col4:
-            st.metric("☀️ 조도", f"{light:.1f} lux")
+            st.metric(
+                "☀️ 조도",
+                metric_value(light, "lux", zero_check=True)
+            )
 
         col5, col6, col7, col8 = st.columns(4)
 
@@ -384,17 +231,10 @@ else:
         with col8:
             st.empty()
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.divider()
 
 
-# ========================================
-# 센서 이력 통계
-# ========================================
-
-st.markdown(
-    '<div class="section-title">📊 센서 데이터 이력 통계</div>',
-    unsafe_allow_html=True
-)
+st.subheader("📊 센서 데이터 이력 통계")
 
 history_df = load_history_data()
 
