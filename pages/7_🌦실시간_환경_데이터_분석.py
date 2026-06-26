@@ -136,7 +136,7 @@ else:
     if len(new_devices) > 0:
         st.success(f"🆕 {', '.join(new_devices)} 데이터 업데이트")
 
-    st.caption("온습도 센서 BME280 / 조도 센서 BH1750 / 미세먼지 센서 PMS7003")
+    st.caption("온습도기압 센서 BME280 / 조도 센서 BH1750 / 미세먼지 센서 PMS7003")
 
     for device_key, data in sorted(realtime_devices.items()):
 
