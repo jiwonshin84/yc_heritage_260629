@@ -200,10 +200,19 @@ else:
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric("🌡️ 기온", f"{temp:.1f} ℃")
+            st.metric(
+                "🌡️ 기온",
+                metric_value(temp, "℃", zero_check=True)
+            )
+            
+            #st.metric("🌡️ 기온", f"{temp:.1f} ℃")
 
         with col2:
-            st.metric("💧 습도", f"{hum:.1f} %")
+            st.metric(
+                "💧 습도",
+                metric_value(hum, "%", zero_check=True)
+            )
+            #st.metric("💧 습도", f"{hum:.1f} %")
 
         with col3:
             st.metric(
